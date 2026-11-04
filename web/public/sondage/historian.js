@@ -13,6 +13,13 @@ import { ChunkSender, ChunkReceiver, wire, sendControl } from "./transfer.js";
 import { InterviewCall } from "./call.js";
 import { sha256Hex, genesis, nextLink } from "./chain.js";
 
+// Shows which copy of this script is running, so an old cached copy is easy to spot.
+{
+  const v = (new URL(import.meta.url).pathname.match(/\/v\/([^/]+)\//) || [0, "?"])[1];
+  const bar = document.querySelector(".room-bar");
+  if (bar) bar.insertAdjacentHTML("beforeend", `<span class="small muted" style="margin-left:12px">build ${v.slice(0, 6)}</span>`);
+}
+
 const root = document.getElementById("room");
 const cfg = root.dataset;
 const $ = (id) => document.getElementById(id);
@@ -177,8 +184,9 @@ $("join").addEventListener("click", async () => {
       updateControls();
     },
     onState: (s) => {
-      if (s === "connected") setConn("Connected, privately and directly", "live");
-      else if (["disconnected", "failed", "channel-closed"].includes(s)) setConn("Reconnecting… your recording continues", "bad");
+      if (s === "connected") setConn(state.channel?.readyState === "open" ? "Connected, privately and directly" : "Connected. Opening the recording link…", state.channel?.readyState === "open" ? "live" : "");
+      else if (s === "link-retry") setConn("Opening the recording link again…", "");
+      else if (["disconnected", "failed", "channel-closed"].includes(s)) { setConn("Reconnecting… your recording continues", "bad"); updateControls(); }
       else if (s === "left") setConn(`${cfg.fellowName} left the call`, "bad");
     },
   });

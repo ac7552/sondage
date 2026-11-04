@@ -1,4 +1,9 @@
 module ApplicationHelper
+  # A script from public/sondage, at a path that changes whenever the scripts change.
+  def sondage_script_tag(name)
+    tag.script(type: "module", src: "/sondage/v/#{SondageScriptsController.version}/#{name}")
+  end
+
   def page_title(text = nil)
     content_for(:title, text) if text
     [ content_for(:title).presence, "Sondage" ].compact.join(" · ")

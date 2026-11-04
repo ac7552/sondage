@@ -26,6 +26,9 @@ Rails.application.routes.draw do
     resources :meetings, only: %i[new create]
   end
 
+  # Interview and safety scripts, under a path that changes when they change
+  get "sondage/v/:v/*path" => "sondage_scripts#show", format: false, as: :sondage_script
+
   # The page a safety-copy holder opens from their safety email
   get "safety" => "safety#show", as: :safety
   post "safety/lookup" => "safety#lookup"

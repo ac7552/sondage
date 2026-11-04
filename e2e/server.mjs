@@ -132,6 +132,7 @@ const server = http.createServer(async (req, res) => {
     return res.end(html);
   }
   if (p === "/timeline") return file(res, new URL("./timeline.html", import.meta.url).pathname);
+  if (p.startsWith("/sondage/v/")) return file(res, path.join(ROOT, "web/public/sondage", p.split("/").slice(4).join("/")));
   if (p.startsWith("/sondage/")) return file(res, path.join(ROOT, "web/public", p));
   if (p === "/assets/application.css") return file(res, path.join(ROOT, "web/app/assets/stylesheets/application.css"));
   if (p === "/assets/room.css") return file(res, path.join(ROOT, "web/app/assets/stylesheets/room.css"));

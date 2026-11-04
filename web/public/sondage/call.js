@@ -17,6 +17,8 @@ export class InterviewCall {
     this.pc = null;
     this.pendingIce = [];
     this.closed = false;
+    this.dc = null;
+    this.offeredAt = 0;
   }
 
   start() {
@@ -32,7 +34,11 @@ export class InterviewCall {
           if (this.role === "historian") this.signal({ type: "ready" });
           break;
         case "ready":
-          if (this.role === "fellow" && !this.isConnected()) await this.offer();
+          // Offer when there is no working call, or the call has no recording link.
+          // An offer already on its way is not replaced (two "ready"s can arrive together).
+          if (this.role !== "fellow") break;
+          if (this.pc?.signalingState === "have-local-offer" && Date.now() - this.offeredAt < 5000) break;
+          if (!this.isConnected() || !this.channelOpen()) await this.offer();
           break;
         case "offer":
           if (this.role === "historian") await this.answer(msg.sdp);
@@ -57,6 +63,10 @@ export class InterviewCall {
     }
   }
 
+  channelOpen() {
+    return this.dc?.readyState === "open";
+  }
+
   isConnected() {
     return this.pc && ["connected", "connecting"].includes(this.pc.connectionState);
   }
@@ -73,6 +83,7 @@ export class InterviewCall {
       if (pc !== this.pc) return;
       this.onState(pc.connectionState);
       if (pc.connectionState === "failed") this.recover();
+      if (pc.connectionState === "connected") this.watchLink(pc);
     };
     return pc;
   }
@@ -86,23 +97,37 @@ export class InterviewCall {
     }, 1500);
   }
 
+  // Sound and picture can work while the recording link (data channel) does not.
+  // If the link hasn't opened a few seconds after connecting, ask for a fresh start.
+  watchLink(pc) {
+    clearTimeout(this.linkTimer);
+    this.linkTimer = setTimeout(() => {
+      if (this.closed || pc !== this.pc || this.channelOpen()) return;
+      console.warn("Sondage: call connected but the recording link did not open; reconnecting");
+      this.onState("link-retry");
+      if (this.role === "fellow") this.offer();
+      else this.signal({ type: "ready" });
+    }, 6000);
+  }
+
+  useChannel(dc) {
+    this.dc = dc;
+    dc.onopen = () => { if (this.dc === dc) this.onChannel(dc); };
+    dc.onclose = () => { if (this.dc === dc) this.onState("channel-closed"); };
+    if (dc.readyState === "open") this.onChannel(dc);
+  }
+
   async offer() {
     const pc = this.newPeer();
-    const dc = pc.createDataChannel("sondage", { ordered: true });
-    dc.onopen = () => this.onChannel(dc);
-    dc.onclose = () => this.onState("channel-closed");
+    this.offeredAt = Date.now();
+    this.useChannel(pc.createDataChannel("sondage", { ordered: true }));
     await pc.setLocalDescription(await pc.createOffer());
     this.signal({ type: "offer", sdp: pc.localDescription.toJSON() });
   }
 
   async answer(sdp) {
     const pc = this.newPeer();
-    pc.ondatachannel = (e) => {
-      const dc = e.channel;
-      if (dc.readyState === "open") this.onChannel(dc);
-      else dc.onopen = () => this.onChannel(dc);
-      dc.onclose = () => this.onState("channel-closed");
-    };
+    pc.ondatachannel = (e) => { if (pc === this.pc) this.useChannel(e.channel); };
     await pc.setRemoteDescription(sdp);
     await this.flushIce();
     await pc.setLocalDescription(await pc.createAnswer());
@@ -117,6 +142,7 @@ export class InterviewCall {
 
   close() {
     this.closed = true;
+    clearTimeout(this.linkTimer);
     this.signal({ type: "bye" });
     if (this.pc) this.pc.close();
   }
