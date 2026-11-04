@@ -31,7 +31,7 @@
     <h2>Meetings</h2>
     <% @meetings.each do |m| %>
       <article class="card">
-        <p class="eyebrow"><%= Meeting::KINDS[m.kind] %> · <%= m.media_type %> · <%= when_label(m.scheduled_at) %></p>
+        <p class="eyebrow"><%= [Meeting::KINDS[m.kind], m.part_label].compact.join(", ") %> · <%= m.media_type %> · <%= when_label(m.scheduled_at) %></p>
         <h3><%= link_to m.title, meeting_path(m) %></h3>
         <p class="small">With <%= m.host.name %> · <span class="tag <%= 'good' if m.sealed? %>"><%= m.status.humanize %></span></p>
         <% if m.capsule %>
@@ -48,7 +48,8 @@
     <% if current_user.admin? %>
       <div class="actions">
         <%= link_to "Schedule 10x10 session", new_fellow_meeting_path(@fellow, kind: "ten_by_ten"), class: "button quiet" %>
-        <%= link_to "Schedule interview", new_fellow_meeting_path(@fellow, kind: "interview"), class: "button quiet" %>
+        <% parts = @fellow.interviews.count %>
+        <%= link_to (parts.zero? ? "Schedule interview" : "Schedule part #{@fellow.interviews.maximum(:part).to_i + 1}"), new_fellow_meeting_path(@fellow, kind: "interview"), class: "button quiet" %>
       </div>
     <% end %>
 
@@ -66,7 +67,7 @@
       <p class="small muted">Any two of these four rebuild <%= @fellow.display_name.split.first %>'s key. None can open anything alone.</p>
       <ul class="log">
         <% @fellow.safety_contacts.each do |c| %>
-          <li><span class="muted"><%= c.role == "self" ? "Fellow" : "Family" %></span><span><%= c.name %><%= " · #{c.email}" if can_edit_fellow? %></span></li>
+          <li><span class="muted"><%= c.role == "self" ? "Fellow" : "Family" %></span><span><%= c.name %><%= " · #{c.email}" if can_edit_fellow? %><% if c.heir %> · <span class="tag">heir</span><% end %></span></li>
         <% end %>
         <li><span class="muted">Sondage</span><span><%= @fellow.sondage_share.present? ? "Held by Sondage, released only after a check" : "Not received" %></span></li>
       </ul>
@@ -74,9 +75,29 @@
       <p class="small muted">Not set up yet. They're created in the Sondage app the first time <%= @fellow.display_name.split.first %> signs in.</p>
     <% end %>
 
+    <% if @fellow.deceased? %><p class="tag accent">Died <%= @fellow.deceased_at.strftime("%B %-d, %Y") %> (confirmed by Sondage)</p><% end %>
+    <% @fellow.inheritance_claims.first(3).each do |c| %>
+      <article class="card">
+        <p class="eyebrow">After death · reported <%= c.created_at.strftime("%b %-d, %-l:%M %p") %></p>
+        <p><span class="tag <%= 'accent' if c.reported? %> <%= 'good' if c.status.in?(%w[confirmed complete]) %>"><%= c.status.capitalize %></span>
+          <%= c.safety_contact.name %> told Sondage that <%= @fellow.display_name.split.first %> has died.</p>
+        <% if c.note.present? %><p class="small"><%= c.note %></p><% end %>
+        <% if c.reported? && current_user.admin? %>
+          <p class="small">Check before confirming: a death certificate or obituary, and a call with the family on numbers already on file. <%= @fellow.display_name.split.first %> has been emailed in case this isn't true.</p>
+          <%= form_with url: confirm_inheritance_claim_path(c), method: :patch, class: "stack" do |f| %>
+            <div class="field"><%= f.label :note, "How you checked" %><%= f.text_field :note, required: true, placeholder: "Obituary in the Daily News, Nov 2; called Marco Ruiz" %></div>
+            <div class="actions"><%= f.submit "Confirm the death", class: "primary", onclick: "return confirm('Confirm that #{j @fellow.display_name} has died? #{j c.safety_contact.name} will be able to ask for the recordings after the waiting period.')" %></div>
+          <% end %>
+          <%= button_to "This isn't true", refuse_inheritance_claim_path(c), method: :patch, class: "link" %>
+        <% elsif c.confirmed? %>
+          <p class="small muted"><%= c.safety_contact.name %> can ask for the recordings in the Sondage app. Sondage's copy can be released from <%= c.release_after.strftime("%B %-d, %Y") %>. Checked by <%= c.decided_by&.name %>: <%= c.note %></p>
+        <% end %>
+      </article>
+    <% end %>
+
     <% @fellow.recoveries.first(3).each do |r| %>
       <article class="card">
-        <p class="eyebrow">Recovery request · <%= r.created_at.strftime("%b %-d, %-l:%M %p") %></p>
+        <p class="eyebrow"><%= r.inheritance? ? "Heir's request (#{r.inheritance_claim.safety_contact.name})" : "Recovery request" %> · <%= r.created_at.strftime("%b %-d, %-l:%M %p") %></p>
         <p><span class="tag <%= 'accent' if r.status.in?(%w[pending blocked]) %> <%= 'good' if r.status == 'complete' %>"><%= r.status.capitalize %></span>
           <% if r.status == "blocked" %> Stopped by <%= r.blocked_by&.name %>.<% end %></p>
         <ul class="log">
@@ -90,7 +111,10 @@
           <%= button_to "Clear the stop", cancel_recovery_path(r), method: :patch, class: "button quiet" %>
         <% end %>
         <% if r.pending? && current_user.admin? %>
-          <% if r.sondage_releasable? && !r.ready? %>
+          <% if r.sondage_releasable? && !r.ready? && r.inheritance? %>
+            <p class="small">The death is confirmed and the waiting period is over. Call <%= r.inheritance_claim.safety_contact.name %> on a number already on file to confirm it's really them asking, then:</p>
+            <%= button_to "Release Sondage's safety copy to #{r.inheritance_claim.safety_contact.first_name}", release_recovery_path(r), method: :patch, class: "button primary" %>
+          <% elsif r.sondage_releasable? && !r.ready? %>
             <p class="small">Call <%= @fellow.display_name.split.first %> on a number already on file and confirm it's really them, then:</p>
             <%= button_to "Release Sondage's safety copy", release_recovery_path(r), method: :patch, class: "button primary", form: { data: { confirm: "Have you confirmed by phone that this request is really from #{@fellow.display_name}?" } } %>
           <% elsif !r.sondage_released? && !r.ready? %>

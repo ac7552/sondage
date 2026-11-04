@@ -4,19 +4,25 @@
 # the piece to the Fellow's new computer before sending it.
 class SafetyController < ApplicationController
   skip_before_action :authenticate_user!
-  skip_forgery_protection only: %i[lookup approve deny] # JSON only, no cookies involved
-  rate_limit to: 30, within: 10.minutes, only: %i[lookup approve deny], with: -> { render json: { error: "Too many tries. Please wait a few minutes." }, status: :too_many_requests }
+  skip_forgery_protection only: %i[lookup approve deny report_death] # JSON only, no cookies involved
+  rate_limit to: 30, within: 10.minutes, only: %i[lookup approve deny report_death], with: -> { render json: { error: "Too many tries. Please wait a few minutes." }, status: :too_many_requests }
   layout "plain"
-  before_action :find_contact, only: %i[lookup approve deny]
+  before_action :find_contact, only: %i[lookup approve deny report_death]
 
   def show; end
 
   def lookup
     r = pending_recovery
+    claim = @contact.fellow.inheritance_claims.active.first
     render json: {
-      contact: { name: @contact.name, role: @contact.role },
-      fellow: { name: @contact.fellow.display_name },
-      recovery: r && { id: r.id, requested_at: r.created_at.iso8601, client: r.client, recipient: r.recipient, already_approved: r.approvals.exists?(safety_contact: @contact) }
+      contact: { name: @contact.name, role: @contact.role, heir: @contact.heir },
+      fellow: { name: @contact.fellow.display_name, deceased: @contact.fellow.deceased? },
+      recovery: r && {
+        id: r.id, requested_at: r.created_at.iso8601, client: r.client, recipient: r.recipient, already_approved: r.approvals.exists?(safety_contact: @contact),
+        inheritance: r.inheritance? && { heir: r.inheritance_claim.safety_contact.name, mine: r.inheritance_claim.safety_contact_id == @contact.id }
+      },
+      inheritance: claim && { status: claim.status, reported_by: claim.safety_contact.name },
+      can_report_death: @contact.heir && !@contact.fellow.deceased? && claim.nil?
     }
   end
 
@@ -41,6 +47,18 @@ class SafetyController < ApplicationController
     r.update!(status: "blocked", blocked_by: @contact)
     AuditEvent.record!("recovery.blocked", actor: nil, fellow: @contact.fellow, subject: r, by: @contact.name)
     User.where(role: "admin").find_each { |a| SafetyMailer.recovery_blocked(a, r, @contact).deliver_later }
+    render json: { ok: true }
+  end
+
+  # An heir tells Sondage the Fellow has died. Nothing opens until Sondage checks.
+  def report_death
+    fellow = @contact.fellow
+    return render(json: { error: "Only someone #{fellow.display_name.split.first} chose for this can tell us here. Please call Sondage." }, status: :forbidden) unless @contact.heir
+    claim = fellow.inheritance_claims.active.first || fellow.inheritance_claims.create!(safety_contact: @contact, note: params[:note].to_s.first(1000))
+    AuditEvent.record!("inheritance.reported", actor: nil, fellow:, subject: claim, by: @contact.name)
+    User.where(role: "admin").find_each { |a| SafetyMailer.death_reported(a, claim).deliver_later }
+    # In case it isn't true, the Fellow hears about it straight away.
+    fellow.safety_contacts.where(role: "self").find_each { |c| SafetyMailer.death_reported_to_fellow(c, claim).deliver_later }
     render json: { ok: true }
   end
 

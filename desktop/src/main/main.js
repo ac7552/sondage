@@ -138,7 +138,7 @@ async function api(method, pathname, body) {
 handle("auth:signIn", async ({ serverUrl, email, password }) => {
   if (serverUrl) store.writeConfig({ serverUrl: serverUrl.replace(/\/+$/, "") });
   const data = await api("POST", "/api/v1/session", { email, password, client: `Sondage desktop ${app.getVersion()}` });
-  if (data.user.role !== "fellow") throw new Error("The desktop app is for the Fellow. Historians and admins use the web app.");
+  if (!["fellow", "heir"].includes(data.user.role)) throw new Error("The desktop app is for the Fellow. Historians and admins use the web app.");
   store.writeSecret("auth", { token: data.token, user: data.user });
   return data.user;
 });
@@ -170,6 +170,17 @@ function fellowKeys() {
   if (!k) throw new Error("This computer has no Fellow key yet");
   return k;
 }
+// Keys that open recordings on this computer: the Fellow's own, plus any a family
+// member received after a Fellow's death (only the unlocking half is kept).
+function openingKeys() {
+  const own = store.readSecret("fellow-keys")?.ageIdentity;
+  const inherited = (store.readSecret("inherited-keys") || []).map((k) => k.ageIdentity);
+  const all = [own, ...inherited].filter(Boolean);
+  if (!all.length) throw new Error("This computer has no key to open recordings yet");
+  return all;
+}
+handle("keys:inherited", () => (store.readSecret("inherited-keys") || []).map(({ fellowId, fellowName, ageRecipient, receivedAt }) => ({ fellowId, fellowName, ageRecipient, receivedAt })));
+
 handle("keys:status", () => {
   const k = store.readSecret("fellow-keys");
   return k ? { hasKeys: true, signingPublicKey: k.signingPublicKey, ageRecipient: k.ageRecipient, fingerprint: keys.fingerprint(k.signingPublicKey), createdAt: k.createdAt } : { hasKeys: false };
@@ -296,6 +307,56 @@ handle("recovery:status", async () => {
   }
   return { ...summary, done: false, problem: "The safety copies received so far don't fit together. Sondage has been told." };
 });
+// ---------------------------------------------------------------- after a Fellow's death
+// The heir's computer makes a one-time key; the heir's safety copy and Sondage's are
+// locked to it, and come together only here. The rebuilt key must match the Fellow's
+// registered keys, and only its unlocking half is kept: an heir can open and listen,
+// never sign as the Fellow.
+handle("inherit:start", async ({ claimId }) => {
+  const identity = await generateX25519Identity();
+  const recipient = await identityToRecipient(identity);
+  const r = await api("POST", `/api/v1/inheritances/${claimId}/recovery`, { recipient, client: `Sondage app on ${os.hostname()}` });
+  store.writeSecret(`inherit-${claimId}`, { recoveryId: r.id, identity });
+  return { id: r.id, status: r.status, release_after: r.release_after };
+});
+handle("inherit:status", async ({ claimId }) => {
+  const saved = store.readSecret(`inherit-${claimId}`);
+  if (!saved) return null;
+  const r = await api("GET", `/api/v1/inheritances/${claimId}/recovery/${saved.recoveryId}`);
+  const summary = { status: r.status, approvedByYou: r.approved_by_you, sondageReleased: r.sondage.released, releaseAfter: r.release_after };
+  if (r.status !== "pending") {
+    if (r.status !== "complete") store.deleteSecret(`inherit-${claimId}`);
+    return { ...summary, done: false };
+  }
+  const pieces = [];
+  for (const p of r.pieces) {
+    try {
+      const d = new Decrypter();
+      d.addIdentity(saved.identity);
+      pieces.push(await d.decrypt(Uint8Array.from(Buffer.from(p.encrypted_piece, "base64")), "text"));
+    } catch {}
+  }
+  if (r.sondage.piece) pieces.push(r.sondage.piece);
+  if (pieces.length < 2) return { ...summary, pieces: pieces.length, done: false };
+  const { inheritances } = await api("GET", "/api/v1/inheritances");
+  const claim = inheritances.find((c) => c.id === claimId);
+  for (let i = 0; i < pieces.length; i++) {
+    for (let j = i + 1; j < pieces.length; j++) {
+      try {
+        const k = await keys.restoreFromShares([pieces[i], pieces[j]]);
+        if (k.ageRecipient !== claim.fellow.age_recipient || (claim.fellow.signing_public_key && k.signingPublicKey !== claim.fellow.signing_public_key)) continue;
+        const list = (store.readSecret("inherited-keys") || []).filter((x) => x.fellowId !== claim.fellow.id);
+        list.push({ fellowId: claim.fellow.id, fellowName: claim.fellow.name, ageIdentity: k.ageIdentity, ageRecipient: k.ageRecipient, receivedAt: new Date().toISOString() });
+        store.writeSecret("inherited-keys", list);
+        store.deleteSecret(`inherit-${claimId}`);
+        await api("POST", `/api/v1/inheritances/${claimId}/recovery/${saved.recoveryId}/complete`).catch(() => {});
+        return { ...summary, done: true };
+      } catch {}
+    }
+  }
+  return { ...summary, done: false, problem: "The safety copies received so far don't fit together. Sondage has been told." };
+});
+
 handle("recovery:cancel", () => {
   store.deleteSecret("recovery");
   return true;
@@ -380,7 +441,7 @@ handle("vault:list", async () => {
 handle("vault:verify", async ({ capsulePath, receiptPath }) => {
   const receipt = await readReceipt(receiptPath);
   const matches = await checkAgainstReceipt(capsulePath, receipt);
-  const r = await openAndVerify(capsulePath, fellowKeys().ageIdentity);
+  const r = await openAndVerify(capsulePath, openingKeys());
   await r.cleanup();
   return { ok: matches && r.ok, checks: [{ name: "Sealed file matches its receipt", ok: matches }, ...r.checks] };
 });
@@ -389,7 +450,7 @@ handle("vault:openCopy", async ({ capsulePath }) => {
   if (pick.canceled || !pick.filePaths[0]) return null;
   const dest = path.join(pick.filePaths[0], path.basename(capsulePath).replace(/\.capsule\.age$/, ""));
   await fsp.mkdir(dest, { recursive: true });
-  const r = await openAndVerify(capsulePath, fellowKeys().ageIdentity, { keepDir: dest });
+  const r = await openAndVerify(capsulePath, openingKeys(), { keepDir: dest });
   shell.showItemInFolder(path.join(dest, "v1", "content", "manifest.json"));
   return { dest, ok: r.ok };
 });
@@ -399,7 +460,7 @@ handle("vault:listen", async ({ capsulePath }) => {
   const dir = path.join(listenRoot, id);
   if (!fs.existsSync(path.join(dir, "v1", "content", "manifest.json"))) {
     await fsp.mkdir(dir, { recursive: true });
-    const r = await openAndVerify(capsulePath, fellowKeys().ageIdentity, { keepDir: dir });
+    const r = await openAndVerify(capsulePath, openingKeys(), { keepDir: dir });
     if (!r.manifest) throw new Error("This recording couldn't be opened.");
   }
   const manifest = JSON.parse(await fsp.readFile(path.join(dir, "v1", "content", "manifest.json"), "utf8"));

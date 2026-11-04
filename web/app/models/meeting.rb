@@ -13,6 +13,13 @@ class Meeting < ApplicationRecord
 
   scope :interviews, -> { where(kind: "interview") }
 
+  # An interview can be a series: shorter sessions are easier on older people.
+  # Each part is recorded and sealed on its own, and can never be changed.
+  before_validation(on: :create) { self.part ||= fellow.interviews.maximum(:part).to_i + 1 if interview? && fellow }
+  validates :part, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
+
+  def part_label = interview? && part ? "Part #{part}" : nil
+
   def interview? = kind == "interview"
   def sealed? = status == "sealed"
   def participant?(user) = user && (user.id == host_id || user.id == fellow.user_id)

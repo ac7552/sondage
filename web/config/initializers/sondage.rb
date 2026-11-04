@@ -1,9 +1,5 @@
-# Settings for the call. STUN finds each side's public address; TURN relays the
-# encrypted call only when two home networks can't connect directly.
-Rails.application.config.x.ice_servers = [
-  { urls: ENV.fetch("STUN_URL", "stun:stun.l.google.com:19302") },
-  (ENV["TURN_URL"].present? ? { urls: ENV["TURN_URL"], username: ENV["TURN_USERNAME"], credential: ENV["TURN_PASSWORD"] } : nil)
-].compact
+# Call servers (STUN, and the TURN relay for homes that can't connect directly)
+# are made per person in app/models/call_relay.rb, with short-lived relay passwords.
 
 # How long after a recovery request Sondage may release its own safety copy.
 # The Fellow and family are emailed straight away, so this is their window to object.

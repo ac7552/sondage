@@ -13,8 +13,8 @@
   --good: #2f6b2a;
   --good-soft: #e2eedb;
   --warn: #8a5a12;
-  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
-  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --serif: "Newsreader", "Iowan Old Style", Georgia, serif;
+  --sans: "Inter", -apple-system, "Segoe UI", system-ui, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 * { box-sizing: border-box; }
@@ -22,10 +22,10 @@
 html, body { margin: 0; background: var(--paper); color: var(--ink); }
 body { font: 21px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
 h1, h2, .wordmark, .timer, .huge { font-family: var(--serif); font-weight: 400; }
-h1 { font-size: 46px; line-height: 1.12; margin: 0 0 22px; }
+h1 { font-size: 50px; line-height: 1.08; margin: 0 0 22px; letter-spacing: -0.015em; }
 h2 { font-size: 28px; margin: 40px 0 12px; }
 p { margin: 0 0 16px; }
-.big { font-size: 24px; line-height: 1.5; color: var(--ink-2); max-width: 34em; }
+.big { font-family: var(--serif); font-size: 26px; line-height: 1.45; color: var(--ink-2); max-width: 32em; }
 .huge { font-size: 36px; margin: 10px 0 28px; word-break: break-all; }
 .small { font-size: 17px; color: var(--muted); }
 .mono { font-family: var(--mono); font-size: 15px; }
@@ -38,6 +38,7 @@ p { margin: 0 0 16px; }
 nav { display: flex; gap: 10px; }
 .navlink { border: 2px solid transparent; background: none; font-size: 20px; padding: 10px 18px; border-radius: 10px; }
 .navlink:hover { border-color: var(--rule); }
+.navlink.signout { color: var(--muted); font-size: 17px; margin-left: 14px; border-left: 1px solid var(--rule); border-radius: 0; padding-left: 24px; }
 
 main { padding: 48px 40px 80px; }
 .page { max-width: 720px; margin: 0 auto; }
@@ -211,3 +212,31 @@ label.tick input { width: 30px; height: 30px; accent-color: var(--ink); flex: no
 .hist-card .chosen-mark { font-size: 22px; color: var(--good); font-weight: 600; align-self: center; }
 dl.about { display: grid; grid-template-columns: auto 1fr; gap: 6px 18px; font-size: 19px; margin: 0 0 18px; }
 dl.about dt { color: var(--muted); } dl.about dd { margin: 0; }
+
+/* Sign in: a photograph and a short promise beside a simple form */
+body[data-view="signin"] .masthead { display: none; }
+#view-signin { margin: -48px -40px -80px; }
+.auth { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(460px, 1fr); min-height: 100vh; }
+.auth-photo { margin: 0; position: relative; background: #2b2823 center / cover no-repeat; filter: grayscale(1) contrast(1.05); }
+.auth-photo::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(20,18,15,.10) 0%, rgba(20,18,15,.15) 45%, rgba(20,18,15,.78) 100%); }
+.auth-photo figcaption { position: absolute; left: 48px; right: 48px; bottom: 48px; z-index: 1; color: #f7f3ea; display: grid; gap: 14px; }
+.auth-photo .wordmark { font-size: 40px; }
+.auth-line { font-family: var(--serif); font-size: 34px; line-height: 1.25; max-width: 16em; }
+.auth-form { padding: 80px 64px 48px; display: flex; flex-direction: column; justify-content: center; max-width: 640px; }
+.auth-form .form { max-width: none; }
+.auth-form button.primary { width: 100%; }
+.auth-foot { margin-top: 40px; font-size: 16px; color: var(--muted); }
+@media (max-width: 980px) { .auth { grid-template-columns: 1fr; } .auth-photo { min-height: 260px; } .auth-form { padding: 40px; } }
+
+/* Photographs elsewhere: quiet, black and white, never required */
+.photo-band { height: 220px; border-radius: 16px; margin: 0 0 30px; background: #d9d2c4 center / cover no-repeat; filter: grayscale(1) contrast(1.04); }
+h1[tabindex="-1"]:focus { outline: none; }
+
+/* Only for one kind of person */
+body[data-role="heir"] [data-for="fellow"] { display: none !important; }
+.heir-steps { list-style: none; padding: 0; margin: 10px 0 24px; }
+.heir-steps li { display: grid; grid-template-columns: 48px 1fr; gap: 18px; align-items: start; padding: 18px 0; border-bottom: 1px solid var(--rule); font-size: 22px; }
+.heir-steps .mark { width: 44px; height: 44px; border-radius: 50%; border: 3px solid var(--rule); display: grid; place-items: center; font-size: 22px; }
+.heir-steps li.done .mark { background: var(--good); border-color: var(--good); color: #fff; }
+.heir-steps li.done .mark::after { content: "✓"; }
+.heir-steps .say { display: block; font-size: 19px; color: var(--muted); margin-top: 4px; }

@@ -152,3 +152,35 @@ or follow `VERIFY.txt` by hand.
 Extra demo accounts: `historian2@sondage.test` (Grace Whitfield, who has chosen Walter), `historian3@sondage.test`, and `walter@sondage.test` (a Fellow still looking). Same password.
 
 Tests: `web/test/integration/journal_and_matching_test.rb`, and `e2e/e2e-journal.mjs` for the desktop app.
+
+
+## Calls between homes: the relay
+
+Most home routers block direct connections between two homes, so production needs a TURN relay. It forwards the encrypted call and can't see or hear it.
+
+1. On a small server with a public IP, put `deploy/coturn/turnserver.conf` (edit the names, IP and secret) and run `docker compose up -d` from `deploy/coturn`.
+2. Open UDP/TCP 3478, TCP 5349 and UDP 49152–65535.
+3. Give the Rails app: `TURN_URLS=turn:relay.example.org:3478?transport=udp,turn:relay.example.org:3478?transport=tcp,turns:relay.example.org:5349?transport=tcp` and `TURN_SECRET=<same secret>`.
+4. Optional `TURN_ONLY=1`: always use the relay, so the two homes never learn each other's internet address.
+
+Rails gives each person a fresh 12-hour relay password (`app/models/call_relay.rb`). The historian's page says "through the Sondage relay" when it's in use. Tested end to end with coturn: `RELAY=1 node e2e/server.mjs`, then `node e2e/e2e-call.mjs`.
+
+
+## After a Fellow dies: heirs
+
+In the desktop app (Help → After I die), the Fellow ticks which family helpers may open their recordings after death. Those helpers already hold a safety copy of the key.
+
+1. The heir opens their safety email and presses "Tell Sondage that … has died". Admins are emailed, and so is the Fellow's own address, in case it isn't true.
+2. An admin checks (obituary or certificate, a call with the family), writes how they checked, and presses Confirm on the Fellow's profile. Sondage makes an heir account and emails a password link and instructions.
+3. After the waiting period (`INHERITANCE_WAIT_DAYS`, 14 in production), the heir signs into the Sondage app, points it at the Fellow's recordings folder (copied from their computer or a backup) and presses "Ask for the key". They confirm from their safety email; an admin calls them and releases Sondage's copy.
+4. The heir's copy plus Sondage's rebuild the key on the heir's computer. It's checked against the Fellow's registered keys, and only the unlocking half is kept: the heir can check and play the recordings, never sign as the Fellow.
+
+Tested end to end in `e2e/e2e-heir.mjs` (run after `e2e-call.mjs` on the same server) and in `web/test/integration/inheritance_test.rb`.
+
+## Interviews in parts
+
+An interview can be several shorter sessions. "Schedule part 2" on the Fellow's profile adds the next one; each part is recorded and sealed on its own, so a saved part never changes.
+
+## Photographs and type
+
+The apps use photographs from sondagestandard.com. Download them once with `bash scripts/fetch-photos.sh` (the apps show a plain tone until then), then commit them. The desktop app bundles the same typefaces as the website, Newsreader and Inter (SIL Open Font License), so it looks the same offline. One portrait on the commission page (Dora Diamantová) has "AI" in its file name and looks AI-colorized; it's left out, given the no-AI promise.

@@ -22,6 +22,7 @@ class Fellow < ApplicationRecord
   has_many :journal_entries, dependent: :destroy
   has_many :journal_prompts, -> { order(:created_at) }, dependent: :destroy
   has_many :match_interests, dependent: :destroy
+  has_many :inheritance_claims, -> { order(created_at: :desc) }, dependent: :destroy
 
   # Sondage's own safety copy. Useless alone; encrypted at rest.
   encrypts :sondage_share
@@ -40,6 +41,9 @@ class Fellow < ApplicationRecord
       birth_place:, languages: languages.to_s.split(",").map(&:strip).reject(&:blank?), intro: match_intro
     }
   end
+
+  def deceased? = deceased_at.present?
+  def heirs = safety_contacts.where(heir: true)
 
   def display_name = preferred_name.presence || user.name
   def stage_label = STAGE_LABELS.fetch(stage, stage.humanize)

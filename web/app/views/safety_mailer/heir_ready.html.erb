@@ -1,0 +1,10 @@
+<p>Dear <%= @contact.first_name %>,</p>
+<p>We're very sorry for your loss. <%= @fellow.display_name %> chose you to receive their Sondage recordings.</p>
+<p>Here is what to do. Take your time, and call us if you'd like help.</p>
+<ol>
+  <li>We've sent you a separate email to set a password for your Sondage account.</li>
+  <li>Install the Sondage app on your computer: <a href="<%= download_url %>">get the app</a>.</li>
+  <li>Copy the folder with <%= @fellow.display_name.split.first %>'s recordings from their computer (it's called "Sondage" in their Documents folder) or from a backup.</li>
+  <li>Open the app, sign in, and press "Ask for the key". Then click the button in the safety email you keep for <%= @fellow.display_name.split.first %>.</li>
+</ol>
+<p>For safety, Sondage releases its part of the key from <%= @claim.release_after.strftime("%B %-d, %Y") %>, after a short call with you.</p>

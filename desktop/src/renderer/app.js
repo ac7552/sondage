@@ -28,7 +28,8 @@ const state = { config: null, me: null, keys: null, setup: null, room: null };
 
 function show(name) {
   $$(".view").forEach((v) => (v.hidden = v.id !== `view-${name}`));
-  $("#nav").hidden = !["home", "vault", "settings", "listen", "story", "journal", "historians"].includes(name);
+  document.body.dataset.view = name;
+  $("#nav").hidden = !["home", "vault", "settings", "listen", "story", "journal", "historians", "heir"].includes(name);
   window.scrollTo(0, 0);
   const h = $(`#view-${name} h1`);
   if (h) { h.tabIndex = -1; h.focus({ preventScroll: true }); }
@@ -43,7 +44,7 @@ document.addEventListener("click", (e) => {
 
 // The Sondage name in the corner always leads home, asking first if that would stop something.
 $("#brand-home").addEventListener("click", async () => {
-  if (!state.me || !$("#view-signin").hidden || !$("#view-setup").hidden || !$("#view-restore").hidden) return;
+  if ((!state.me && state.config?.user?.role !== "heir") || !$("#view-signin").hidden || !$("#view-setup").hidden || !$("#view-restore").hidden) return;
   const room = state.room;
   if (room?.sealing) {
     if (!confirm("Your recording is still being saved.\n\nGo home anyway? Nothing is lost. You can finish saving later by starting the interview again.")) return;
@@ -58,10 +59,13 @@ $("#brand-home").addEventListener("click", async () => {
 
 async function boot() {
   state.config = await S.config.get();
+  document.body.dataset.role = state.config.user?.role || "";
+  $('#nav [data-go="vault"]').textContent = state.config.user?.role === "heir" ? "Recordings" : "My recordings";
   if (!state.config.signedIn) {
     $("#server-url").value = state.config.serverUrl;
     return show("signin");
   }
+  if (state.config.user?.role === "heir") return loadHeirHome();
   state.keys = await S.keys.status();
   const me = (state.me = await S.api("GET", "/api/v1/me").catch(() => null));
   const registered = me?.fellow?.signing_public_key;
@@ -289,6 +293,7 @@ $("#restore-form").addEventListener("submit", async (e) => {
 // ---------------------------------------------------------------- home
 
 async function loadHome() {
+  if (state.config?.user?.role === "heir") return loadHeirHome();
   show("home");
   try {
     state.me = await S.api("GET", "/api/v1/me");
@@ -306,14 +311,15 @@ async function loadHome() {
   if (next) {
     $("#home-card").innerHTML = `
       <div class="card">
-        <p class="label">Your interview</p>
+        <p class="label">Your interview${next.parts > 1 ? `, part ${next.part} of ${next.parts}` : ""}</p>
         <p class="when">${next.scheduled_at ? `${esc(longDate(next.scheduled_at))} at ${esc(longTime(next.scheduled_at))}` : "Soon"}</p>
         <p class="with">with ${esc(next.historian?.name || "your interviewer")}. ${next.media_type === "video" ? "You will see and hear each other." : "You will hear each other. No camera."}</p>
         <button class="primary" data-join="${next.id}">Start my interview</button>
+        ${done.length ? `<p class="small" style="margin-top:16px">${done.length === 1 ? "Part 1 is" : `${done.length} parts are`} saved on this computer. Each part is locked on its own.</p>` : ""}
       </div>
       <div class="card"><p class="big">See your life story: your photos, songs and memories, in order.</p><button data-go="story">Open my life story</button></div>`;
   } else if (done.length) {
-    $("#home-card").innerHTML = `<div class="card"><p class="big">Your interview is saved.</p><button class="primary" data-go="vault">Listen to my recording</button></div>`;
+    $("#home-card").innerHTML = `<div class="card"><p class="big">${done.length > 1 ? `All ${done.length} parts of your interview are saved.` : "Your interview is saved."}</p><p>If you'd like to record more, Sondage can set up another part.</p><button class="primary" data-go="vault">Listen to my recording${done.length > 1 ? "s" : ""}</button></div>`;
   } else {
     $("#home-card").innerHTML = `<div class="card"><p class="big">Your interview is not set up yet. Sondage will call you to pick a day.</p></div>`;
   }
@@ -510,6 +516,7 @@ async function joinRoom(iv) {
   room.call = new InterviewCall({
     role: "fellow",
     iceServers: iv.ice_servers,
+    relayOnly: !!iv.relay_only,
     localStream: room.stream,
     signal: (msg) => room.sub.perform("signal", { payload: msg }),
     onRemoteStream: (s) => {
@@ -909,9 +916,17 @@ async function loadSettings() {
   show("settings");
   state.config = await S.config.get();
   const k = await S.keys.status();
-  const contacts = await S.keys.contacts().catch(() => []);
+  if (!state.me) state.me = await S.api("GET", "/api/v1/me").catch(() => null);
+  // This computer's own list, or (after getting the key back on a new computer) the account's.
+  let contacts = await S.keys.contacts().catch(() => []);
+  if (!contacts.length) contacts = state.me?.fellow?.safety_contacts || [];
   $("#helpers-list").innerHTML = contacts.filter((c) => c.role === "family").map((c) => `<li><span class="mark">✓</span><span>${esc(c.name)}<span class="sub">${esc(c.email)}</span></span></li>`).join("")
     + `<li><span class="mark">✓</span><span>Sondage<span class="sub">Only after calling you to check</span></span></li>`;
+  const people = (state.me?.fellow?.safety_contacts || []).filter((c) => c.role === "family");
+  $("#heirs-saved").hidden = true;
+  $("#heirs-list").innerHTML = people.length
+    ? people.map((c) => `<label class="tick"><input type="checkbox" name="heir" value="${c.id}" ${c.heir ? "checked" : ""}> ${esc(c.name)} may open my recordings</label>`).join("")
+    : `<p class="small">Set up your helpers first.</p>`;
   $("#settings-facts").innerHTML = `
     <dt>Signed in as</dt><dd>${esc(state.config.user?.name)} (${esc(state.config.user?.email)})</dd>
     <dt>Sondage server</dt><dd class="mono">${esc(state.config.serverUrl)}</dd>
@@ -922,6 +937,17 @@ async function loadSettings() {
     <dt>App version</dt><dd>${esc(state.config.version)}</dd>`;
 }
 $("#resend-safety").addEventListener("click", () => startSending([1, 2, 0]));
+$("#heirs-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const ids = $$('#heirs-list input[name="heir"]:checked').map((i) => +i.value);
+  try {
+    await S.api("PUT", "/api/v1/heirs", { heir_contact_ids: ids });
+    state.me = await S.api("GET", "/api/v1/me");
+    $("#heirs-saved").hidden = false;
+  } catch (ex) {
+    alert(ex.message);
+  }
+});
 $("#sign-out").addEventListener("click", async () => {
   if (!confirm("Sign out of Sondage on this computer?")) return;
   await S.auth.signOut();
@@ -1199,4 +1225,75 @@ $("#view-historians").addEventListener("submit", async (ev) => {
   const f = new FormData(ev.target);
   await S.api("PATCH", "/api/v1/match_intro", { fellow: { match_intro: f.get("intro"), languages: f.get("languages") } });
   $("#intro-saved").hidden = false;
+});
+
+// ---------------------------------------------------------------- for an heir
+// After Sondage confirms a Fellow's death, the family member they chose opens the
+// recordings here: their own safety copy plus Sondage's rebuild the key on this computer.
+
+let heirTimer = null;
+async function loadHeirHome() {
+  show("heir");
+  clearTimeout(heirTimer);
+  const box = $("#heir-body");
+  let list, have;
+  try {
+    ({ inheritances: list } = await S.api("GET", "/api/v1/inheritances"));
+    have = new Set((await S.inherit.keys()).map((k) => k.fellowId));
+  } catch {
+    box.innerHTML = `<p class="problem">We can't reach Sondage right now. Check that the internet is on.</p>`;
+    return;
+  }
+  if (!list.length) {
+    box.innerHTML = `<p class="big">Nothing yet. Sondage will email you when everything is ready.</p>`;
+    return;
+  }
+  const vault = await S.vault.list().catch(() => []);
+  const cards = [];
+  let waiting = false;
+  for (const c of list) {
+    const first = c.fellow.name.split(" ")[0];
+    if (have.has(c.fellow.id)) {
+      cards.push(`<div class="card"><p class="label">${esc(c.fellow.name)}</p><p class="big">✓ You can open ${esc(first)}'s recordings on this computer.</p><button class="primary" data-go="vault">Open ${esc(first)}'s recordings</button></div>`);
+      continue;
+    }
+    const st = await S.inherit.status(c.id).catch(() => null);
+    if (st?.done) { return loadHeirHome(); }
+    const asked = !!st && st.status === "pending";
+    if (asked) waiting = true;
+    const release = c.release_after ? new Date(c.release_after) : null;
+    cards.push(`
+      <div class="card">
+        <p class="label">${esc(c.fellow.name)}</p>
+        <p class="big">We're very sorry for your loss. ${esc(first)} chose you to keep their recordings.</p>
+        <ol class="heir-steps">
+          <li class="${vault.length ? "done" : ""}"><span class="mark"></span><span>Put ${esc(first)}'s recordings on this computer
+            <span class="say">${vault.length ? `${vault.length} recording${vault.length === 1 ? "" : "s"} found.` : `Copy the "Sondage" folder from ${esc(first)}'s computer or a backup, then choose it here.`}</span>
+            <span class="buttons"><button data-heir-folder>${vault.length ? "Choose a different folder" : "Choose the folder"}</button></span></span></li>
+          <li class="${asked ? "done" : ""}"><span class="mark"></span><span>Ask for the key
+            <span class="say">${asked ? "Asked." : "This sends you an email to confirm."}</span>
+            ${asked ? "" : `<span class="buttons"><button class="primary" data-heir-ask="${c.id}">Ask for the key</button></span>`}</span></li>
+          <li class="${st?.approvedByYou ? "done" : ""}"><span class="mark"></span><span>Click the button in your safety email
+            <span class="say">${st?.approvedByYou ? "Done. Thank you." : `It's the email ${esc(first)} sent you, called "My Sondage safety copy".`}</span></span></li>
+          <li class="${st?.sondageReleased ? "done" : ""}"><span class="mark"></span><span>Sondage gives its part
+            <span class="say">${st?.sondageReleased ? "Done." : `After a short call with you${release && release > new Date() ? `, from ${esc(longDate(c.release_after))}` : ""}.`}</span></span></li>
+        </ol>
+        ${st?.problem ? `<p class="problem">${esc(st.problem)}</p>` : ""}
+      </div>`);
+  }
+  box.innerHTML = cards.join("");
+  if (waiting && !$("#view-heir").hidden) heirTimer = setTimeout(() => !$("#view-heir").hidden && loadHeirHome(), 5000);
+}
+$("#view-heir").addEventListener("click", async (ev) => {
+  const t = ev.target.closest("button");
+  if (!t) return;
+  if (t.hasAttribute("data-heir-folder")) {
+    await S.config.chooseVault();
+    return loadHeirHome();
+  }
+  if (t.dataset.heirAsk) {
+    t.disabled = true;
+    try { await S.inherit.start(+t.dataset.heirAsk); } catch (ex) { alert(ex.message); }
+    return loadHeirHome();
+  }
 });

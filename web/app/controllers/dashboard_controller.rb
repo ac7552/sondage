@@ -5,6 +5,9 @@ class DashboardController < ApplicationController
       @fellows = Fellow.includes(:user, :meetings).order(:created_at)
       @upcoming = Meeting.includes(:fellow, :host).where(status: %w[scheduled in_progress]).order(:scheduled_at)
       render :admin
+    when "heir"
+      @claims = current_user.inheritance_claims.includes(fellow: :user)
+      render :heir
     when "historian"
       @interviews = current_user.hosted_meetings.interviews.includes(fellow: :user).order(:scheduled_at)
       render :historian

@@ -6,6 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { WebSocketServer } from "ws";
+import { spawn } from "node:child_process";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const PORT = +process.env.PORT || 3999;
@@ -17,10 +18,32 @@ const users = {
 };
 const fellow = { id: 1, age_recipient: null };
 const meeting = { id: 1, title: "Life history interview with Eleanor Ruiz", media_type: process.env.MEDIA || "video", status: "scheduled", scheduled_at: new Date(Date.now() + 3600e3).toISOString() };
-const tokens = new Set();
+const tokens = new Map(); // token -> "fellow" | "heir"
+users.heir = { id: 9, name: "Ana Ruiz", email: "ana@example.com", role: "heir", password: "heir-demo-2026" };
+const claim = { id: 1, status: null, contactSha: null, release_after: null }; // after a Fellow's death
 const safety = { sondageShare: null, contacts: [], recoveries: [] };
 const sha = (hex) => crypto.createHash("sha256").update(Buffer.from(hex, "hex")).digest("hex");
 export const state = { receipt: null };
+
+// RELAY=1: run a local TURN relay and make both sides use only the relay, the way
+// two homes that can't reach each other directly would. Credentials are made the
+// same way the Rails app makes them (coturn's shared-secret scheme).
+const RELAY = !!process.env.RELAY;
+const iceFor = (userId) => {
+  if (!RELAY) return { ice_servers: [], relay_only: false };
+  const username = `${Math.floor(Date.now() / 1000) + 12 * 3600}:${userId}`;
+  const credential = crypto.createHmac("sha1", "test-secret").update(username).digest("base64");
+  return { ice_servers: [{ urls: ["turn:127.0.0.1:3478?transport=udp"], username, credential }], relay_only: true };
+};
+if (RELAY) {
+  // The real coturn relay, set up the way deploy/coturn/turnserver.conf sets it up.
+  const turn = spawn("turnserver", ["-n", "--listening-ip=127.0.0.1", "--relay-ip=127.0.0.1", "--listening-port=3478", "--use-auth-secret", "--static-auth-secret=test-secret",
+    "--realm=sondage.test", "--no-tls", "--no-dtls", "--allow-loopback-peers", "--no-cli", "--fingerprint", "--no-multicast-peers", "--log-file=stdout"], { stdio: ["ignore", "pipe", "pipe"] });
+  turn.stdout.on("data", (d) => /allocation|error/i.test(d) && fs.appendFileSync(new URL("./out/turn.log", import.meta.url), d));
+  process.on("exit", () => turn.kill());
+  for (const sig of ["SIGTERM", "SIGINT"]) process.on(sig, () => process.exit(0));
+  log("TURN relay (coturn) on 127.0.0.1:3478, relay only");
+}
 
 const sample = JSON.parse(fs.readFileSync(new URL("./sample-timeline.json", import.meta.url)));
 
@@ -77,11 +100,12 @@ const server = http.createServer(async (req, res) => {
   const p = url.pathname;
   if (p === "/api/v1/session" && req.method === "POST") {
     const b = await body(req);
-    if (b.email !== users.fellow.email || b.password !== users.fellow.password) return json(res, 401, { error: "That email and password don't match." });
+    const u = [users.fellow, users.heir].find((x) => x.email === b.email && x.password === b.password);
+    if (!u) return json(res, 401, { error: "That email and password don't match." });
     const t = crypto.randomBytes(20).toString("hex");
-    tokens.add(t);
-    log("desktop signed in");
-    return json(res, 201, { token: t, user: { id: 3, name: users.fellow.name, email: users.fellow.email, role: "fellow" } });
+    tokens.set(t, u.role);
+    log(`desktop signed in (${u.role})`);
+    return json(res, 201, { token: t, user: { id: u.id, name: u.name, email: u.email, role: u.role } });
   }
   if (p.startsWith("/api/") && !authed(req)) return json(res, 401, { error: "Please sign in again." });
   if (p === "/api/v1/session" && req.method === "DELETE") return json(res, 204, {});
@@ -89,16 +113,16 @@ const server = http.createServer(async (req, res) => {
     return json(res, 200, {
       user: { id: 3, name: users.fellow.name, email: users.fellow.email, role: "fellow" },
       fellow: { id: 1, name: users.fellow.name, stage: "interview", signing_public_key: users.fellow.signing_public_key, age_recipient: fellow.age_recipient,
-        safety_contacts: safety.contacts.map(({ name, email, role }) => ({ name, email, role })), pending_recovery_id: safety.recoveries.find((r) => r.status === "pending")?.id || null,
+        safety_contacts: safety.contacts.map(({ id, name, email, role, heir }) => ({ id, name, email, role, heir: !!heir })), pending_recovery_id: safety.recoveries.find((r) => r.status === "pending")?.id || null,
         historian: hist.matched?.name || null, journal_prompts_waiting: waitingPrompts().length },
-      interviews: [{ ...meeting, historian: { name: users.historian.name, signing_public_key: users.historian.signing_public_key }, capsule: null, ice_servers: [] }],
+      interviews: [{ ...meeting, part: 1, parts: 1, historian: { name: users.historian.name, signing_public_key: users.historian.signing_public_key }, capsule: null, ...iceFor(3) }],
     });
   }
   if (p === "/api/v1/keys" && req.method === "PUT") {
     const b = await body(req);
     users.fellow.signing_public_key = b.signing_public_key;
     fellow.age_recipient = b.age_recipient;
-    if (b.sondage_share) { safety.sondageShare = b.sondage_share; safety.contacts = b.safety_contacts; }
+    if (b.sondage_share) { safety.sondageShare = b.sondage_share; safety.contacts = b.safety_contacts.map((c, i) => ({ ...c, id: i + 1, heir: false })); }
     log("safety copies registered:", safety.contacts.map((c) => `${c.name} (${c.role})`).join(", "));
     log("fellow key registered", b.signing_public_key.slice(0, 12));
     return json(res, 200, { ok: true });
@@ -115,7 +139,7 @@ const server = http.createServer(async (req, res) => {
     log(`journal: new entry ${e.id}${e.voice ? ` with voice (${e.voice.bytes} bytes, ${e.voice.content_type})` : ""}${e.shared_with_historian ? ", shared" : ", private"}`);
     return json(res, 201, e);
   }
-  let jm;
+  let jm, jm2;
   if ((jm = p.match(/^\/api\/v1\/journal\/prompts\/(\d+)\/dismiss$/))) { const pr = jr.prompts.find((r) => r.id === +jm[1]); if (pr) pr.dismissed = true; return json(res, 204, {}); }
   if ((jm = p.match(/^\/api\/v1\/journal\/(\d+)\/voice$/))) {
     const v = jr.voices.get(+jm[1]);
@@ -175,13 +199,54 @@ const server = http.createServer(async (req, res) => {
     if (m[2]) { r.status = "complete"; log("recovery complete", r.id); return json(res, 200, { ok: true }); }
     return json(res, 200, recPayload(r));
   }
+  // ---- after a Fellow's death
+  if (p === "/api/v1/heirs" && req.method === "PUT") {
+    const b = await body(req);
+    safety.contacts.forEach((c) => (c.heir = c.role === "family" && b.heir_contact_ids.includes(c.id)));
+    log("heirs chosen:", safety.contacts.filter((c) => c.heir).map((c) => c.name).join(", ") || "none");
+    return json(res, 200, { heirs: safety.contacts.filter((c) => c.heir).map(({ id, name }) => ({ id, name })) });
+  }
+  const isHeir = () => tokens.get((req.headers.authorization || "").replace("Bearer ", "")) === "heir";
+  if (p === "/api/v1/inheritances") {
+    if (!isHeir()) return json(res, 403, { error: "forbidden" });
+    const r = safety.recoveries.filter((x) => x.inheritance).at(-1);
+    return json(res, 200, { inheritances: ["confirmed", "complete"].includes(claim.status) ? [{ id: 1, status: claim.status, release_after: claim.release_after, fellow: { id: 1, name: users.fellow.name, age_recipient: fellow.age_recipient, signing_public_key: users.fellow.signing_public_key }, recovery: r ? { id: r.id, status: r.status } : null }] : [] });
+  }
+  if (p === "/api/v1/inheritances/1/recovery" && req.method === "POST") {
+    const b = await body(req);
+    safety.recoveries.forEach((r) => r.status === "pending" && (r.status = "cancelled"));
+    const r = { id: safety.recoveries.length + 1, recipient: b.recipient, status: "pending", approvals: [], released: false, created: new Date().toISOString(), client: b.client, inheritance: true };
+    safety.recoveries.push(r);
+    log("heir asked for the key (recovery", r.id + ")");
+    return json(res, 201, { id: r.id, status: r.status, release_after: claim.release_after });
+  }
+  if ((jm2 = p.match(/^\/api\/v1\/inheritances\/1\/recovery\/(\d+)(\/complete)?$/))) {
+    const r = safety.recoveries.find((x) => x.id === +jm2[1] && x.inheritance);
+    if (!r) return json(res, 404, { error: "Not found" });
+    if (jm2[2]) { r.status = "complete"; claim.status = "complete"; log("heir has the key"); return json(res, 200, { ok: true }); }
+    const heirSha = claim.contactSha;
+    return json(res, 200, { id: r.id, status: r.status, release_after: claim.release_after, approved_by_you: r.approvals.some((a) => a.sha === heirSha),
+      pieces: r.status === "pending" ? r.approvals.map((a) => ({ encrypted_piece: a.encrypted_piece })) : [], sondage: { released: r.released, piece: r.released && r.status === "pending" ? safety.sondageShare : null } });
+  }
+  if (p === "/test/confirm-death" && req.method === "POST") { claim.status = "confirmed"; claim.release_after = new Date().toISOString(); log("admin confirmed the death"); return json(res, 200, {}); }
+
   if (p === "/safety") return file(res, new URL("./safety.html", import.meta.url).pathname);
   if (p.startsWith("/safety/") && req.method === "POST") {
     const b = await body(req);
     const c = safety.contacts.find((x) => x.piece_sha256 === b.piece_sha256);
     if (!c) return json(res, 404, { error: "This safety link isn't recognised." });
     const r = safety.recoveries.find((x) => x.status === "pending");
-    if (p === "/safety/lookup") return json(res, 200, { contact: { name: c.name, role: c.role }, fellow: { name: users.fellow.name }, recovery: r && { id: r.id, requested_at: r.created, client: r.client, recipient: r.recipient, already_approved: r.approvals.some((a) => a.sha === c.piece_sha256) } });
+    const active = ["reported", "confirmed"].includes(claim.status);
+    if (p === "/safety/lookup") return json(res, 200, { contact: { name: c.name, role: c.role, heir: !!c.heir }, fellow: { name: users.fellow.name, deceased: claim.status && claim.status !== "reported" && claim.status !== "refused" },
+      recovery: r && { id: r.id, requested_at: r.created, client: r.client, recipient: r.recipient, already_approved: r.approvals.some((a) => a.sha === c.piece_sha256), inheritance: r.inheritance ? { heir: safety.contacts.find((x) => x.piece_sha256 === claim.contactSha)?.name, mine: c.piece_sha256 === claim.contactSha } : false },
+      inheritance: active ? { status: claim.status, reported_by: safety.contacts.find((x) => x.piece_sha256 === claim.contactSha)?.name } : null,
+      can_report_death: !!c.heir && !claim.status });
+    if (p === "/safety/report_death") {
+      if (!c.heir) return json(res, 403, { error: "Only someone chosen can tell us here." });
+      Object.assign(claim, { status: "reported", contactSha: c.piece_sha256 });
+      log(`${c.name} reported the death; admins and the Fellow's own address emailed`);
+      return json(res, 200, { ok: true });
+    }
     if (!r || r.id !== b.recovery_id) return json(res, 404, { error: "There's no request right now." });
     if (p === "/safety/approve") { if (!r.approvals.some((a) => a.sha === c.piece_sha256)) r.approvals.push({ sha: c.piece_sha256, name: c.name, encrypted_piece: b.encrypted_piece }); log("approved by", c.name); return json(res, 200, { ok: true }); }
     if (p === "/safety/deny") { r.status = "blocked"; r.blockedBy = c.piece_sha256; log("blocked by", c.name); return json(res, 200, { ok: true }); }
@@ -200,7 +265,9 @@ const server = http.createServer(async (req, res) => {
     return json(res, 200, { ok: true });
   }
   if (p === "/room") {
-    let html = fs.readFileSync(new URL("./room.html", import.meta.url), "utf8").replace('data-media-type="audio"', `data-media-type="${meeting.media_type}"`);
+    const ice = iceFor(2);
+    let html = fs.readFileSync(new URL("./room.html", import.meta.url), "utf8").replace('data-media-type="audio"', `data-media-type="${meeting.media_type}"`)
+      .replace('data-ice-servers="[]"', `data-ice-servers="${JSON.stringify(ice.ice_servers).replace(/"/g, "&quot;")}" data-relay-only="${ice.relay_only}"`);
     if (meeting.media_type === "video") html = html.replace('class="stage audio-only"', 'class="stage "');
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
     return res.end(html);

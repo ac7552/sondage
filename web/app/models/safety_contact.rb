@@ -6,11 +6,14 @@ class SafetyContact < ApplicationRecord
   belongs_to :fellow
   has_many :recovery_approvals, dependent: :destroy
   has_many :blocked_recoveries, class_name: "Recovery", foreign_key: :blocked_by_id, dependent: :nullify
+  has_many :inheritance_claims, dependent: :destroy
 
   normalizes :email, with: ->(e) { e.strip.downcase }
   validates :name, :email, presence: true
   validates :role, inclusion: { in: ROLES }
   validates :piece_sha256, format: { with: /\A[0-9a-f]{64}\z/ }, uniqueness: true
+
+  validate { errors.add(:heir, "must be a family member, not the Fellow") if heir && role == "self" }
 
   def first_name = name.split.first
 end

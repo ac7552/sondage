@@ -5,6 +5,9 @@ class Api::V1::RecoveriesController < Api::V1::BaseController
   before_action :set_recovery, only: %i[show complete]
 
   def create
+    if @fellow.deceased?
+      return render(json: { error: "This account is closed. Please call Sondage." }, status: :forbidden)
+    end
     unless current_user.signing_public_key.present? && @fellow.safety_contacts.any?
       return render(json: { error: "No safety copies were set up for this account. Please call Sondage." }, status: :unprocessable_entity)
     end

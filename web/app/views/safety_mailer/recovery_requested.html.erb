@@ -1,5 +1,9 @@
 <p>Hello <%= @contact.first_name %>,</p>
-<% if @contact.role == "self" %>
+<% if @recovery.inheritance? %>
+  <p>You asked to open <%= @fellow_name %>'s recordings on your computer.</p>
+  <p>Find the email <%= @fellow_name.split.first %> sent you titled <strong>“My Sondage safety copy”</strong> and click the button inside it. Then go back to the Sondage app.</p>
+  <p><strong>If you didn't ask for this,</strong> call Sondage straight away.</p>
+<% elsif @contact.role == "self" %>
   <p>You asked to get your Sondage recordings back on a new computer.</p>
   <p>Open the email you sent yourself titled <strong>“My Sondage safety copy”</strong> and click the button inside it. Your family will be asked to help too.</p>
   <p><strong>If you didn't ask for this,</strong> call Sondage straight away.</p>

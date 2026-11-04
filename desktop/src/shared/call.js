@@ -6,9 +6,11 @@
 // The Fellow always makes the offer, so reconnection has one clear owner.
 
 export class InterviewCall {
-  constructor({ role, iceServers, localStream, signal, onRemoteStream, onChannel, onState }) {
+  constructor({ role, iceServers, relayOnly = false, localStream, signal, onRemoteStream, onChannel, onState }) {
     this.role = role; // "fellow" | "historian"
     this.iceServers = iceServers || [];
+    // "relay": always go through the TURN relay, so neither home learns the other's address.
+    this.iceTransportPolicy = relayOnly ? "relay" : "all";
     this.localStream = localStream;
     this.signal = (msg) => signal({ ...msg, from: role });
     this.onRemoteStream = onRemoteStream || (() => {});
@@ -74,7 +76,7 @@ export class InterviewCall {
   newPeer() {
     if (this.pc) this.pc.close();
     this.pendingIce = [];
-    const pc = new RTCPeerConnection({ iceServers: this.iceServers });
+    const pc = new RTCPeerConnection({ iceServers: this.iceServers, iceTransportPolicy: this.iceTransportPolicy });
     this.pc = pc;
     for (const track of this.localStream.getTracks()) pc.addTrack(track, this.localStream);
     pc.onicecandidate = (e) => e.candidate && this.signal({ type: "ice", candidate: e.candidate.toJSON() });
@@ -138,6 +140,18 @@ export class InterviewCall {
     const queued = this.pendingIce;
     this.pendingIce = [];
     for (const c of queued) await this.pc.addIceCandidate(c).catch(() => {});
+  }
+
+  // How the call is travelling right now: "direct" or "relay" (for the helper details).
+  async route() {
+    if (!this.pc) return null;
+    const stats = await this.pc.getStats();
+    let pair = null;
+    stats.forEach((r) => { if (r.type === "transport" && r.selectedCandidatePairId) pair = stats.get(r.selectedCandidatePairId); });
+    if (!pair) stats.forEach((r) => { if (r.type === "candidate-pair" && r.nominated && r.state === "succeeded") pair = r; });
+    if (!pair) return null;
+    const local = stats.get(pair.localCandidateId), remote = stats.get(pair.remoteCandidateId);
+    return local?.candidateType === "relay" || remote?.candidateType === "relay" ? "relay" : "direct";
   }
 
   close() {

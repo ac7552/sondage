@@ -1,0 +1,3 @@
+<p><strong><%= @claim.safety_contact.name %></strong> told Sondage that <strong><%= @fellow.display_name %></strong> has died.</p>
+<p>Please check before confirming: a death certificate or obituary, and a call with the family on numbers already on file. <%= @fellow.display_name.split.first %> has been emailed in case this isn't true.</p>
+<p><a href="<%= fellow_url(@fellow) %>">Open <%= @fellow.display_name %>'s profile</a></p>

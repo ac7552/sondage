@@ -7,6 +7,7 @@ class Recovery < ApplicationRecord
   belongs_to :fellow
   belongs_to :released_by, class_name: "User", optional: true
   belongs_to :blocked_by, class_name: "SafetyContact", optional: true
+  belongs_to :inheritance_claim, optional: true # set when an heir is asking, after the Fellow's death
   has_many :approvals, class_name: "RecoveryApproval", dependent: :destroy
 
   validates :status, inclusion: { in: STATUSES }
@@ -15,6 +16,7 @@ class Recovery < ApplicationRecord
   scope :pending, -> { where(status: "pending") }
 
   def pending? = status == "pending"
+  def inheritance? = inheritance_claim_id.present?
   def sondage_released? = sondage_released_at.present?
   def sondage_releasable? = pending? && !sondage_released? && Time.current >= release_after && fellow.sondage_share.present?
   def pieces_available = approvals.size + (sondage_released? ? 1 : 0)

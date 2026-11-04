@@ -6,6 +6,7 @@
     <article class="card historian-card"><h3><%= @fellow.historian.name %></h3><% if p.headline.present? %><p class="eyebrow"><%= p.headline %></p><% end %><%= simple_format(p.bio) %></article>
   <% end %>
 <% else %>
+  <div class="photo-band" style="background-image: url(/photos/fellow-in-session.jpg)"></div>
   <h1>Choose your historian</h1>
   <p class="lede">A historian is the person who will talk with you and record your story. Read about each one. Choose up to <%= MatchInterest::MAX_FELLOW_CHOICES %> you'd like to talk with.</p>
   <p>When a historian you chose also chooses you, Sondage will call you to make sure, and then you're matched.</p>

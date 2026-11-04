@@ -112,6 +112,8 @@ await win.waitForFunction(() => document.getElementById("room-status").textConte
 await hist.waitForFunction(() => !document.getElementById("h-start").disabled, null, { timeout: 15000 });
 step("connected; fellow sees: " + (await win.textContent("#room-status")));
 await shot(win, "f10-room-before");
+await hist.waitForTimeout(1500);
+step("historian sees: " + (await hist.textContent("#conn")));
 
 await hist.click("#h-start");
 await win.waitForFunction(() => document.getElementById("rec-banner").classList.contains("on"), null, { timeout: 15000 });

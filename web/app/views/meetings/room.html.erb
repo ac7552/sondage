@@ -7,7 +7,8 @@
      data-registered-key="<%= current_user.signing_public_key %>"
      data-key-url="<%= signing_key_path %>"
      data-cable-js="<%= asset_path('actioncable.esm.js') %>"
-     data-ice-servers="<%= Rails.configuration.x.ice_servers.to_json %>"
+     data-ice-servers="<%= CallRelay.ice_servers_for(current_user).to_json %>"
+     data-relay-only="<%= CallRelay.relay_only? %>"
      data-home-url="<%= root_path %>">
   <header class="room-bar">
     <%= link_to root_path, class: "brand" do %><span class="wordmark">Sondage</span><% end %>

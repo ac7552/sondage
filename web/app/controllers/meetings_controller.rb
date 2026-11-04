@@ -9,7 +9,7 @@ class MeetingsController < ApplicationController
   end
 
   def create
-    @meeting = @fellow.meetings.build(params.require(:meeting).permit(:kind, :host_id, :media_type, :title, :scheduled_at))
+    @meeting = @fellow.meetings.build(params.require(:meeting).permit(:kind, :host_id, :media_type, :title, :scheduled_at, :historian_notes))
     if @meeting.save
       audit("meeting.scheduled", subject: @meeting, kind: @meeting.kind, host: @meeting.host.name)
       redirect_to fellow_path(@fellow), notice: "#{@meeting.title} scheduled."
@@ -45,6 +45,8 @@ class MeetingsController < ApplicationController
   end
 
   def default_title(kind)
-    kind == "interview" ? "Life history interview with #{@fellow.display_name}" : "10x10 session with #{@fellow.display_name}"
+    return "10x10 session with #{@fellow.display_name}" unless kind == "interview"
+    part = @fellow.interviews.maximum(:part).to_i + 1
+    "Life history interview with #{@fellow.display_name}#{", part #{part}" if part > 1}"
   end
 end

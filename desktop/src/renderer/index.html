@@ -5,6 +5,7 @@
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'self'; script-src 'self' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http: https:; media-src 'self' blob: mediastream: sondage-media:; connect-src 'self' ws: wss: http: https:;" />
   <title>Sondage</title>
+  <link rel="stylesheet" href="fonts.css" />
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="timeline.css" />
 </head>
@@ -13,10 +14,11 @@
     <button class="brand" id="brand-home" title="Go to my home page"><span class="wordmark">Sondage</span></button>
     <nav id="nav" hidden>
       <button data-go="home" class="navlink">Home</button>
-      <button data-go="story" class="navlink">My life story</button>
-      <button data-go="journal" class="navlink">My journal</button>
+      <button data-go="story" class="navlink" data-for="fellow">My life story</button>
+      <button data-go="journal" class="navlink" data-for="fellow">My journal</button>
       <button data-go="vault" class="navlink">My recordings</button>
       <button data-go="settings" class="navlink">Help</button>
+      <button id="sign-out" class="navlink signout">Sign out</button>
     </nav>
   </header>
 
@@ -24,19 +26,28 @@
 
     <!-- ============ Sign in ============ -->
     <section class="view" id="view-signin" hidden>
-      <div class="page">
-        <h1>Welcome to Sondage</h1>
-        <p class="big">Type your email and your password.</p>
-        <form id="signin-form" class="form">
-          <label>Your email<input name="email" type="email" autocomplete="username" required /></label>
-          <label>Your password<input name="password" type="password" autocomplete="current-password" required /></label>
-          <p class="problem" id="signin-error" hidden></p>
-          <button class="primary" type="submit">Sign in</button>
-        </form>
-        <p class="small">Forgot your password? Go to the Sondage website and click <em>Forgot your password?</em></p>
-        <details class="helpers-only"><summary>For helpers: server address</summary>
-          <label>Sondage web address<input id="server-url" form="signin-form" name="serverUrl" type="url" /></label>
-        </details>
+      <div class="auth">
+        <figure class="auth-photo" style="background-image: url(photos/family-of-six.jpg)">
+          <figcaption>
+            <span class="wordmark">Sondage</span>
+            <span class="auth-line">Your life, in your own words.<br>Kept exactly as you said it.</span>
+          </figcaption>
+        </figure>
+        <div class="auth-form">
+          <h1>Welcome back.</h1>
+          <p class="big">Type your email and your password.</p>
+          <form id="signin-form" class="form">
+            <label>Your email<input name="email" type="email" autocomplete="username" required /></label>
+            <label>Your password<input name="password" type="password" autocomplete="current-password" required /></label>
+            <p class="problem" id="signin-error" hidden></p>
+            <button class="primary" type="submit">Sign in</button>
+          </form>
+          <p class="small">Forgot your password? Go to the Sondage website and click <em>Forgot your password?</em> Or call your Sondage helper.</p>
+          <details class="helpers-only"><summary>For helpers: server address</summary>
+            <label>Sondage web address<input id="server-url" form="signin-form" name="serverUrl" type="url" /></label>
+          </details>
+          <p class="auth-foot">Human-made. No AI is used to collect, record or interpret anything here.</p>
+        </div>
       </div>
     </section>
 
@@ -46,6 +57,7 @@
         <p class="stepcount" id="setup-count"></p>
 
         <div class="step" data-step="intro">
+          <div class="photo-band" style="background-image: url(photos/family-outdoors.jpg)"></div>
           <h1>Let's keep your recordings safe</h1>
           <p class="big">Your recordings will be locked. Only you can open them.</p>
           <p class="big">In case you ever need help, we will ask <strong>2 people you trust</strong> to help you.</p>
@@ -270,6 +282,7 @@
     <!-- ============ My journal ============ -->
     <section class="view" id="view-journal" hidden>
       <div class="page">
+        <div class="photo-band" style="background-image: url(photos/family-couch.jpg)"></div>
         <h1>My journal</h1>
         <p class="big">Write down a memory whenever it comes to you, or say it out loud. Only you can read it, unless you choose to share it.</p>
         <div id="journal-prompts"></div>
@@ -311,8 +324,18 @@
     <!-- ============ Choosing a historian ============ -->
     <section class="view" id="view-historians" hidden>
       <div class="page">
+        <div class="photo-band" style="background-image: url(photos/fellow-in-session.jpg)"></div>
         <h1 id="hist-title">Choose your historian</h1>
         <div id="hist-body"></div>
+      </div>
+    </section>
+
+    <!-- ============ For an heir: recordings left to them ============ -->
+    <section class="view" id="view-heir" hidden>
+      <div class="page">
+        <div class="photo-band" style="background-image: url(photos/family-of-six.jpg)"></div>
+        <h1>Recordings left to you</h1>
+        <div id="heir-body"></div>
       </div>
     </section>
 
@@ -321,11 +344,19 @@
       <div class="page">
         <h1>Help</h1>
         <p class="big">Need help? Call your Sondage helper. They can walk you through anything.</p>
-        <h2>People who can help you get your recordings back</h2>
-        <ul class="people" id="helpers-list"></ul>
-        <button id="resend-safety">Send their emails again</button>
-        <h2>Leaving this computer</h2>
-        <button id="sign-out">Sign out</button>
+        <div data-for="fellow">
+          <h2>People who can help you get your recordings back</h2>
+          <ul class="people" id="helpers-list"></ul>
+          <button id="resend-safety">Send their emails again</button>
+
+          <h2>After I die</h2>
+          <p class="big">Who may open your recordings after you die? Choose from the people who help you.</p>
+          <p>Sondage will check first, and wait two weeks, before anything is opened. Nobody else can open them, not even Sondage.</p>
+          <form id="heirs-form" class="form wide-form">
+            <div id="heirs-list"></div>
+            <div class="buttons"><button class="primary" type="submit">Save</button><span class="saved" id="heirs-saved" hidden>✓ Saved</span></div>
+          </form>
+        </div>
         <details class="helpers-only"><summary>Technical details</summary>
           <dl class="facts" id="settings-facts"></dl>
         </details>

@@ -166,6 +166,7 @@ $("join").addEventListener("click", async () => {
   state.call = new InterviewCall({
     role: "historian",
     iceServers: JSON.parse(cfg.iceServers),
+    relayOnly: cfg.relayOnly === "true",
     localStream: state.stream,
     signal: (msg) => state.sub.perform("signal", { payload: msg }),
     onRemoteStream: (s) => {
@@ -179,6 +180,8 @@ $("join").addEventListener("click", async () => {
       for (const t of state.tracks.values()) sendControl(dc, { t: "track", id: t.id, kind: t.kind, info: t.info });
       wire(dc, { sender: state.sender, receiver });
       setConn("Connected, privately and directly", "live");
+      // Say whether the call goes straight between the two homes or through the relay.
+      setTimeout(() => state.call.route().then((r) => { if (r && dc.readyState === "open") setConn(r === "relay" ? "Connected privately, through the Sondage relay" : "Connected, privately and directly", "live"); }).catch(() => {}), 1000);
       // If the Fellow dropped out and came back mid-recording, their app picks it up again.
       sendControl(dc, { t: "historian-state", recording: !!state.recording });
       updateControls();

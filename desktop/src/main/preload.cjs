@@ -22,6 +22,11 @@ contextBridge.exposeInMainWorld("sondage", {
     restore: (shares, expectedPublicKey) => call("keys:restore", { shares, expectedPublicKey }),
     shares: () => call("keys:shares"),
   },
+  inherit: {
+    start: (claimId) => call("inherit:start", { claimId }),
+    status: (claimId) => call("inherit:status", { claimId }),
+    keys: () => call("keys:inherited"),
+  },
   recovery: {
     start: () => call("recovery:start"),
     status: () => call("recovery:status"),

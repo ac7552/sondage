@@ -1,9 +1,10 @@
 <% page_title "Matching" %>
+<div class="photo-band" style="background-image: url(/photos/archive.jpg)"></div>
 <p class="eyebrow">Historian</p>
 <h1>Find Fellows</h1>
 <p class="lede">Fellows who are looking for a historian. Choose the people you'd like to work with. When a Fellow has also chosen you, Sondage confirms the match with them by phone.</p>
 
-<div class="split">
+<div class="split split-narrow-aside">
   <div>
     <% @fellows.each do |f| %>
       <% card = f.match_card %>
@@ -37,16 +38,13 @@
   <aside>
     <article class="card">
       <h3>Your profile</h3>
-      <p class="small muted">This is what Fellows read when choosing a historian. Write plainly; many Fellows are in their 80s and 90s.</p>
-      <%= form_with model: @profile, url: match_profile_path, method: :patch, class: "stack" do |f| %>
-        <div class="field"><%= f.label :headline, "One line about you" %><%= f.text_field :headline, placeholder: "Oral historian of Puerto Rican New York" %></div>
-        <div class="field"><%= f.label :bio, "About you" %><%= f.text_area :bio, rows: 6 %></div>
-        <div class="field"><%= f.label :languages %><%= f.text_field :languages, placeholder: "English, Spanish" %></div>
-        <div class="field"><%= f.label :regions, "Places you know well" %><%= f.text_field :regions, placeholder: "New York, Puerto Rico" %></div>
-        <div class="field"><%= f.label :specialties, "Subjects you're drawn to" %><%= f.text_field :specialties, placeholder: "Migration, small business, music" %></div>
-        <label class="choices"><span><%= f.check_box :accepting %> I'm taking new Fellows</span></label>
-        <div class="actions"><%= f.submit "Save my profile", class: "primary" %></div>
+      <% if @profile.persisted? %>
+        <p class="small muted"><%= @profile.accepting ? "Fellows can see you and choose you." : "You're not taking new Fellows right now, so Fellows can't see you." %></p>
+        <% if @profile.headline.present? %><p><%= @profile.headline %></p><% end %>
+      <% else %>
+        <p class="small">Fellows can't choose you until you write a short profile.</p>
       <% end %>
+      <%= link_to (@profile.persisted? ? "Change my profile" : "Write my profile"), edit_historian_profile_path, class: "button #{'primary' unless @profile.persisted?}" %>
     </article>
   </aside>
 </div>

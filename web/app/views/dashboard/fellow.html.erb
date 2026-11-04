@@ -33,7 +33,7 @@
     <% @interviews.each do |m| %>
       <article class="card">
         <p class="eyebrow"><%= m.scheduled_at ? m.scheduled_at.strftime("%A, %B %-d at %-l:%M %p") : "Day to be chosen" %></p>
-        <h3>With <%= m.host.name %></h3>
+        <h3><%= @interviews.size > 1 && m.part ? "#{m.part_label}, with #{m.host.name}" : "With #{m.host.name}" %></h3>
         <p><%= m.sealed? ? "Your interview is saved on your computer. Only you can open it." : "On the day, open the Sondage app on your computer and click Start my interview." %></p>
       </article>
     <% end %>

@@ -1,0 +1,15 @@
+<% page_title "Recordings left to you" %>
+<h1>Recordings left to you</h1>
+<% @claims.each do |c| %>
+  <article class="card">
+    <h3><%= c.fellow.display_name %></h3>
+    <% if c.confirmed? || c.status == "complete" %>
+      <p>To open <%= c.fellow.display_name.split.first %>'s recordings, use the Sondage app on your computer. Sign in with this email and password.</p>
+      <p>You'll also need the folder with <%= c.fellow.display_name.split.first %>'s recordings, copied from their computer or a backup.</p>
+      <%= link_to "Get the Sondage app", download_path, class: "button primary" %>
+    <% else %>
+      <p>Sondage is still checking. We'll email you.</p>
+    <% end %>
+  </article>
+<% end %>
+<p class="muted">We're sorry for your loss. If you need help, please call Sondage.</p>

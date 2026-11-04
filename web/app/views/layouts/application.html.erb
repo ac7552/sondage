@@ -21,7 +21,8 @@
         <%= link_to "Home", root_path %>
         <% if current_user.admin? %><%= link_to "Intake questions", intake_questions_path %><% end %>
         <% if current_user.fellow? && current_user.fellow %><%= link_to "My timeline", fellow_timeline_path(current_user.fellow) %><%= link_to "My journal", fellow_journal_entries_path(current_user.fellow) %><%= link_to (current_user.fellow.historian ? "My historian" : "Choose a historian"), match_path %><% end %>
-        <% if current_user.admin? || current_user.historian? %><%= link_to "Matching", match_path %><% end %>
+        <% if current_user.admin? %><%= link_to "Matching", match_path %><% end %>
+        <% if current_user.historian? %><%= link_to "Find Fellows", match_path %><%= link_to "My profile", edit_historian_profile_path %><% end %>
         <span class="who"><%= current_user.name %> · <%= current_user.role.capitalize %></span>
         <%= button_to "Sign out", destroy_user_session_path, method: :delete, class: "link" %>
       </nav>

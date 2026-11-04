@@ -34,6 +34,7 @@ Rails.application.routes.draw do
   # Matching Fellows and historians
   get "match" => "matches#show", as: :match
   patch "match/intro" => "matches#update_intro", as: :match_intro
+  get "match/profile" => "matches#edit_profile", as: :edit_historian_profile
   patch "match/profile" => "matches#update_profile", as: :match_profile
   post "match/choose" => "matches#choose", as: :match_choose
   post "match/:id/confirm" => "matches#confirm", as: :confirm_match
@@ -47,6 +48,13 @@ Rails.application.routes.draw do
   post "safety/lookup" => "safety#lookup"
   post "safety/approve" => "safety#approve"
   post "safety/deny" => "safety#deny"
+  post "safety/report_death" => "safety#report_death"
+  resources :inheritance_claims, only: [] do
+    member do
+      patch :confirm
+      patch :refuse
+    end
+  end
   resources :recoveries, only: [] do
     member do
       patch :release
@@ -73,6 +81,14 @@ Rails.application.routes.draw do
       post "historians/:id/choose" => "historians#choose", as: :choose_historian
       delete "historians/:id/choose" => "historians#unchoose"
       patch "match_intro" => "historians#update_intro"
+      put "heirs" => "heirs#update"
+      resources :inheritances, only: :index do
+        member do
+          post :recovery, action: :create_recovery
+          get "recovery/:recovery_id" => "inheritances#recovery", as: :recovery_status
+          post "recovery/:recovery_id/complete" => "inheritances#complete", as: :recovery_complete
+        end
+      end
       post "interviews/:id/capsule" => "capsules#create", as: :interview_capsule
       resources :recoveries, only: %i[create show] do
         post :complete, on: :member

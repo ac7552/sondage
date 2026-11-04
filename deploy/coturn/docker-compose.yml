@@ -1,0 +1,9 @@
+# docker compose up -d   (on the relay server, with turnserver.conf beside this file)
+services:
+  coturn:
+    image: coturn/coturn:4.6
+    network_mode: host # the relay needs a wide range of UDP ports
+    volumes:
+      - ./turnserver.conf:/etc/coturn/turnserver.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    restart: unless-stopped

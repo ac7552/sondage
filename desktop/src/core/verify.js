@@ -18,12 +18,13 @@ import { fileDigest } from "./capsule.js";
 
 // Decrypts a .capsule.age file into a temporary folder and verifies it.
 // Returns { ok, checks, manifest, objectDir }. Call cleanup() when done.
+// ageIdentity may be one identity or a list (the Fellow's own, and any inherited ones).
 export async function openAndVerify(capsulePath, ageIdentity, { keepDir } = {}) {
   const objectDir = keepDir || (await fsp.mkdtemp(path.join(os.tmpdir(), "sondage-open-")));
   const checks = [];
   try {
     const d = new Decrypter();
-    d.addIdentity(ageIdentity);
+    for (const id of [].concat(ageIdentity).filter(Boolean)) d.addIdentity(id);
     const plain = await d.decrypt(Readable.toWeb(fs.createReadStream(capsulePath)));
     await pipeline(Readable.fromWeb(plain), tar.x({ cwd: objectDir, strict: true }));
     checks.push({ name: "Opened with the Fellow's key", ok: true });

@@ -1,7 +1,11 @@
 <% page_title "Schedule" %>
 <div class="narrow">
   <p class="eyebrow"><%= @fellow.display_name %></p>
-  <h1>Schedule a <%= Meeting::KINDS[@meeting.kind].downcase %></h1>
+  <% next_part = @fellow.interviews.maximum(:part).to_i + 1 %>
+  <h1><%= @meeting.interview? ? (next_part > 1 ? "Schedule part #{next_part} of the interview" : "Schedule the interview") : "Schedule a 10x10 session" %></h1>
+  <% if @meeting.interview? && next_part > 1 %>
+    <p class="lede">Each part is recorded and sealed on its own, so nothing already saved can change. Shorter sessions, an hour or so, are easier for most Fellows.</p>
+  <% end %>
   <%= error_summary(@meeting) %>
   <%= form_with model: [@fellow, @meeting], class: "stack" do |f| %>
     <%= f.hidden_field :kind %>
@@ -12,6 +16,7 @@
       <div class="field"><%= f.label :scheduled_at, "When" %><%= f.datetime_local_field :scheduled_at %></div>
       <div class="field"><%= f.label :media_type, "Recording" %><%= f.select :media_type, [["Audio only", "audio"], ["Video and audio", "video"]] %></div>
     </div>
+    <% if @meeting.interview? %><div class="field"><%= f.label :historian_notes, "Questions for this part (only the historian sees these)" %><%= f.text_area :historian_notes, rows: 5 %></div><% end %>
     <% if @meeting.interview? %><p class="hint small">In both cases the uncompressed audio is the master record. Video is recorded too, compressed to a practical size, and labelled as such in the capsule.</p><% end %>
     <div class="actions"><%= f.submit "Schedule", class: "primary" %><%= link_to "Cancel", fellow_path(@fellow), class: "link" %></div>
   <% end %>

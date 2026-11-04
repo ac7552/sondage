@@ -1,6 +1,7 @@
 <% first = @fellow.display_name.split.first %>
 <% page_title @owner ? "My journal" : "#{first}'s journal" %>
 <% if @owner %>
+  <div class="photo-band" style="background-image: url(/photos/family-couch.jpg)"></div>
   <h1>My journal</h1>
   <p class="lede">Write down a memory whenever it comes to you. You can change or delete anything here at any time.</p>
 <% else %>

@@ -1,13 +1,24 @@
 <% page_title "Sign in" %>
-<span class="wordmark">Sondage</span>
-<p class="eyebrow">Making human history</p>
-<% if alert %><p class="flash alert"><%= alert %></p><% end %>
-<% if notice %><p class="flash notice"><%= notice %></p><% end %>
-<%= form_for(resource, as: resource_name, url: session_path(resource_name), html: { class: "stack card" }) do |f| %>
-  <div class="field"><%= f.label :email %><%= f.email_field :email, autofocus: true, autocomplete: "username", required: true %></div>
-  <div class="field"><%= f.label :password %><%= f.password_field :password, autocomplete: "current-password", required: true %></div>
-  <div class="choices"><label><%= f.check_box :remember_me %> Keep me signed in on this computer</label></div>
-  <%= f.submit "Sign in", class: "primary" %>
-<% end %>
-<p><%= link_to "Forgot your password?", new_password_path(resource_name) %></p>
-<p class="small muted">Fellows: you'll use this same email and password in the Sondage app for your interview.</p>
+<% content_for :body_class, "auth-page" %>
+<div class="auth">
+  <figure class="auth-photo" style="background-image: url(/photos/fellow-in-session.jpg)">
+    <figcaption>
+      <span class="wordmark">Sondage</span>
+      <span class="auth-line">Every life is a history.<br>We help you keep yours, exactly as you tell it.</span>
+    </figcaption>
+  </figure>
+  <div class="auth-form">
+    <h1>Welcome back.</h1>
+    <% if alert %><p class="flash alert"><%= alert %></p><% end %>
+    <% if notice %><p class="flash notice"><%= notice %></p><% end %>
+    <%= form_for(resource, as: resource_name, url: session_path(resource_name), html: { class: "stack" }) do |f| %>
+      <div class="field"><%= f.label :email, "Your email" %><%= f.email_field :email, autofocus: true, autocomplete: "username", required: true %></div>
+      <div class="field"><%= f.label :password, "Your password" %><%= f.password_field :password, autocomplete: "current-password", required: true %></div>
+      <div class="choices"><label><%= f.check_box :remember_me %> Keep me signed in on this computer</label></div>
+      <%= f.submit "Sign in", class: "primary" %>
+    <% end %>
+    <p><%= link_to "Forgot your password?", new_password_path(resource_name) %></p>
+    <p class="small muted">Fellows: you'll use this same email and password in the Sondage app for your interview.</p>
+    <p class="auth-foot small muted">Human-made. No AI is used to collect, record, transcribe or interpret anything here.</p>
+  </div>
+</div>

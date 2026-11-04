@@ -17,12 +17,18 @@ class MatchesController < ApplicationController
     redirect_to match_path, notice: "Saved."
   end
 
-  # The historian's profile, shown to Fellows.
+  # The historian's profile, shown to Fellows. Its own page.
+  def edit_profile
+    return head(:forbidden) unless current_user.historian?
+    @profile = current_user.historian_profile || current_user.build_historian_profile(accepting: true)
+    render :profile
+  end
+
   def update_profile
     return head(:forbidden) unless current_user.historian?
     profile = current_user.historian_profile || current_user.build_historian_profile
     profile.update!(params.require(:historian_profile).permit(:headline, :bio, :languages, :regions, :specialties, :accepting))
-    redirect_to match_path, notice: "Your profile is saved."
+    redirect_to edit_historian_profile_path, notice: "Your profile is saved. This is what Fellows will read."
   end
 
   # Fellows pick historians; historians pick Fellows. Pressing again takes it back.

@@ -48,6 +48,39 @@ async function start() {
   const self = info.contact.role === "self";
   const r = info.recovery;
 
+  // After a Fellow's death: an heir can tell Sondage, and later opens the recordings.
+  if (!r && info.inheritance) {
+    return show(info.inheritance.status === "reported" ? "Sondage is checking" : "Sondage has confirmed it",
+      info.inheritance.status === "reported"
+        ? `<p>${esc(info.inheritance.reported_by)} told us that ${esc(fellow)} has died. We're very sorry.</p><p>Sondage is checking, and will call the family. Nothing is opened in the meantime.</p>`
+        : `<p>We're very sorry for your loss.</p><p>The people ${esc(first)} chose will get an email explaining how to open ${esc(first)}'s recordings.</p>`);
+  }
+  if (!r && info.can_report_death) {
+    return show(`Thank you for keeping this, ${esc(info.contact.name.split(" ")[0])}`,
+      `<p>This is your part of ${esc(fellow)}'s safety key. There's nothing to do now.</p>
+       <p>${esc(first)} also chose you to receive their recordings after they die. If that has happened, you can tell Sondage here. We will check before anything is opened.</p>`,
+      {
+        yes: `Tell Sondage that ${first} has died`,
+        no: "Not now",
+        onYes: () => reportDeath(piece_sha256, first),
+        onNo: () => show("Thank you", "<p>Keep this email. You can come back to it any time.</p>"),
+      });
+  }
+  if (r?.inheritance && !r.already_approved) {
+    const mine = r.inheritance.mine;
+    const when = new Date(r.requested_at).toLocaleString(undefined, { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
+    return show(mine ? `Open ${esc(first)}'s recordings on your computer?` : `Help ${esc(r.inheritance.heir.split(" ")[0])} open ${esc(first)}'s recordings?`,
+      mine
+        ? `<p>On <strong>${esc(when)}</strong>, the Sondage app asked to open ${esc(fellow)}'s recordings on your computer.</p><p>If that was you, confirm below.</p>`
+        : `<p>${esc(first)} chose ${esc(r.inheritance.heir)} to receive their recordings. ${esc(r.inheritance.heir.split(" ")[0])} asked on <strong>${esc(when)}</strong> to open them.</p><p>Sondage has confirmed ${esc(first)}'s death. If you're not sure about this request, call ${esc(r.inheritance.heir.split(" ")[0])} first.</p>`,
+      {
+        yes: mine ? "Yes, this was me" : "Yes, help them",
+        no: mine ? "No, I didn't ask" : "No, stop this",
+        onYes: () => approve(piece_sha256, r, mine, first),
+        onNo: () => deny(piece_sha256, r, mine, first),
+      });
+  }
+
   if (!r) {
     return show(self ? "Nothing to do right now" : `Thank you for keeping this, ${esc(info.contact.name.split(" ")[0])}`,
       self
@@ -69,6 +102,18 @@ async function start() {
       onYes: () => approve(piece_sha256, r, self, first),
       onNo: () => deny(piece_sha256, r, self, first),
     });
+}
+
+async function reportDeath(piece_sha256, first) {
+  if (!confirm(`Tell Sondage that ${first} has died?\n\nSondage will check with the family before anything is opened.`)) return;
+  $("s-yes").disabled = $("s-no").disabled = true;
+  try {
+    await post("/safety/report_death", { piece_sha256 });
+    show("Thank you", `<p>We're very sorry for your loss.</p><p>Sondage will check and call you. When it's confirmed, we'll email you how to open ${esc(first)}'s recordings.</p>`);
+  } catch (err) {
+    $("s-yes").disabled = $("s-no").disabled = false;
+    alert(err.message);
+  }
 }
 
 async function approve(piece_sha256, r, self, first) {
