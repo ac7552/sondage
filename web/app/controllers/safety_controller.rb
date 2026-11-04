@@ -54,7 +54,9 @@ class SafetyController < ApplicationController
   def report_death
     fellow = @contact.fellow
     return render(json: { error: "Only someone #{fellow.display_name.split.first} chose for this can tell us here. Please call Sondage." }, status: :forbidden) unless @contact.heir
-    claim = fellow.inheritance_claims.active.first || fellow.inheritance_claims.create!(safety_contact: @contact, note: params[:note].to_s.first(1000))
+    # Already reported or confirmed: nothing more to do, and no more emails.
+    return render(json: { ok: true }) if fellow.deceased? || fellow.inheritance_claims.active.exists?
+    claim = fellow.inheritance_claims.create!(safety_contact: @contact, note: params[:note].to_s.first(1000))
     AuditEvent.record!("inheritance.reported", actor: nil, fellow:, subject: claim, by: @contact.name)
     User.where(role: "admin").find_each { |a| SafetyMailer.death_reported(a, claim).deliver_later }
     # In case it isn't true, the Fellow hears about it straight away.

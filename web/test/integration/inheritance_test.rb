@@ -88,6 +88,27 @@ class InheritanceTest < ActionDispatch::IntegrationTest
     assert_equal "complete", claim.reload.status
   end
 
+  test "a second report sends no more emails" do
+    @ana.update!(heir: true)
+    post "/safety/report_death", params: { piece_sha256: @ana.piece_sha256 }, as: :json
+    assert_no_enqueued_emails { post "/safety/report_death", params: { piece_sha256: @ana.piece_sha256 }, as: :json }
+    assert_equal 1, @fellow.inheritance_claims.count
+  end
+
+  test "when a family member stops an heir's request, the heir can't simply ask again" do
+    @ana.update!(heir: true)
+    claim = @fellow.inheritance_claims.create!(safety_contact: @ana)
+    claim.confirm!(@admin, note: "checked")
+    claim.heir_user.update!(password: "heir-pass-123")
+    headers = api_headers("ana@test", "heir-pass-123")
+    post "/api/v1/inheritances/#{claim.id}/recovery", params: { recipient: RECIPIENT }, headers: headers, as: :json
+    rid = response.parsed_body["id"]
+    post "/safety/deny", params: { piece_sha256: @marco.piece_sha256, recovery_id: rid }, as: :json
+    assert_response :success
+    post "/api/v1/inheritances/#{claim.id}/recovery", params: { recipient: RECIPIENT }, headers: headers, as: :json
+    assert_response :forbidden
+  end
+
   test "someone who isn't an heir can't use the inheritance API" do
     get "/api/v1/inheritances", headers: api_headers("f@test")
     assert_response :forbidden

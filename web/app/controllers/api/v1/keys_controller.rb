@@ -8,7 +8,12 @@ class Api::V1::KeysController < Api::V1::BaseController
     signing = params.require(:signing_public_key)
     recipient = params.require(:age_recipient)
     replaced = current_user.signing_public_key.present? && current_user.signing_public_key != signing
+    if @fellow.inheritance_claims.active.exists?
+      return render(json: { error: "Please call Sondage before changing your safety copies." }, status: :forbidden)
+    end
+    heir_emails = @fellow.heirs.pluck(:email)
     contacts = Array(params[:safety_contacts]).map { |c| c.permit(:name, :email, :role, :piece_sha256).to_h }
+    contacts.each { |c| c["heir"] = c["role"] == "family" && heir_emails.include?(c["email"].to_s.strip.downcase) }
 
     ActiveRecord::Base.transaction do
       current_user.update!(signing_public_key: signing, signing_key_registered_at: Time.current)

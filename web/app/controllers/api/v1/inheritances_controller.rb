@@ -12,9 +12,11 @@ class Api::V1::InheritancesController < Api::V1::BaseController
   # The heir's app sends a one-time key; the safety copies are locked to it.
   def create_recovery
     return render(json: { error: "This is closed." }, status: :conflict) unless @claim.confirmed?
+    # A family member pressed "No, stop this": only Sondage can clear it, after calling.
+    return render(json: { error: "A helper stopped the last request. Please call Sondage." }, status: :forbidden) if @claim.recoveries.exists?(status: "blocked")
     recovery = nil
     ActiveRecord::Base.transaction do
-      @claim.recoveries.pending.update_all(status: "cancelled")
+      @claim.fellow.recoveries.pending.update_all(status: "cancelled") # including any the Fellow started before
       recovery = @claim.recoveries.create!(fellow: @claim.fellow, recipient: params.require(:recipient), release_after: [ @claim.release_after, Time.current ].max, client: params[:client].to_s.first(100))
     end
     SafetyMailer.recovery_requested(@claim.safety_contact, recovery).deliver_later

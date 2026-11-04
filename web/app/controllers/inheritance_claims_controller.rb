@@ -9,8 +9,9 @@ class InheritanceClaimsController < ApplicationController
     return redirect_to(fellow_path(@fellow), alert: "Please write how you checked.") if note.blank?
     user = @claim.confirm!(current_user, note:)
     audit("inheritance.confirmed", subject: @claim, heir: @claim.safety_contact.name, note:)
-    SafetyMailer.heir_ready(@claim).deliver_later
-    user.send_reset_password_instructions if user.previously_new_record? # a new account: let them set a password
+    new_account = user.previously_new_record?
+    SafetyMailer.heir_ready(@claim, new_account:).deliver_later
+    user.send_reset_password_instructions if new_account # a new account: let them set a password
     redirect_to fellow_path(@fellow), notice: "Confirmed. #{@claim.safety_contact.name} has been emailed how to open the recordings."
   rescue ArgumentError => e
     redirect_to fellow_path(@fellow), alert: e.message

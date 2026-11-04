@@ -11,7 +11,7 @@ class InheritanceClaim < ApplicationRecord
   has_many :recoveries, dependent: :nullify
 
   validates :status, inclusion: { in: STATUSES }
-  validate { errors.add(:safety_contact, "is not an heir") unless safety_contact&.heir? && safety_contact.fellow_id == fellow_id }
+  validate(on: :create) { errors.add(:safety_contact, "is not an heir") unless safety_contact&.heir? && safety_contact.fellow_id == fellow_id }
 
   scope :active, -> { where(status: %w[reported confirmed]) }
 
@@ -28,6 +28,7 @@ class InheritanceClaim < ApplicationRecord
       raise ArgumentError, "#{user.email} already has a #{user.role} account, so it can't be used as an heir's account" unless user.heir?
       update!(status: "confirmed", heir_user: user, decided_by: admin, decided_at: Time.current, release_after: self.class.wait_days.days.from_now, note:)
       fellow.update!(deceased_at: fellow.deceased_at || Time.current)
+      fellow.user.api_tokens.destroy_all # the Fellow's own app can no longer act for them
       user
     end
   end

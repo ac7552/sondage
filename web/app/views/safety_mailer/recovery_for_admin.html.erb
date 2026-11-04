@@ -1,3 +1,9 @@
-<p><strong><%= @fellow.display_name %></strong> asked to restore their key on a new computer (<%= @recovery.client.presence || "Sondage app" %>).</p>
-<p>Before releasing Sondage's safety copy, call them on a number you already have on file and confirm it was really them. The copy can be released from <%= @recovery.release_after.strftime("%B %-d at %-l:%M %p") %>.</p>
+<% if @recovery.inheritance? %>
+  <% heir = @recovery.inheritance_claim.safety_contact %>
+  <p><strong><%= heir.name %></strong> asked to open <strong><%= @fellow.display_name %></strong>'s recordings on their computer (<%= @recovery.client.presence || "Sondage app" %>). The death was confirmed on <%= @recovery.inheritance_claim.decided_at&.strftime("%B %-d") %>.</p>
+  <p>Before releasing Sondage's safety copy, call <%= heir.first_name %> on a number already on file and confirm it's really them asking. The copy can be released from <%= @recovery.release_after.strftime("%B %-d at %-l:%M %p") %>.</p>
+<% else %>
+  <p><strong><%= @fellow.display_name %></strong> asked to restore their key on a new computer (<%= @recovery.client.presence || "Sondage app" %>).</p>
+  <p>Before releasing Sondage's safety copy, call them on a number you already have on file and confirm it was really them. The copy can be released from <%= @recovery.release_after.strftime("%B %-d at %-l:%M %p") %>.</p>
+<% end %>
 <p><a href="<%= fellow_url(@fellow) %>">Open <%= @fellow.display_name %>'s profile</a></p>

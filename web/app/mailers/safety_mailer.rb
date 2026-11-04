@@ -42,8 +42,9 @@ class SafetyMailer < ApplicationMailer
   end
 
   # To the heir once Sondage has confirmed the death.
-  def heir_ready(claim)
+  def heir_ready(claim, new_account: true)
     @claim = claim
+    @new_account = new_account
     @fellow = claim.fellow
     @contact = claim.safety_contact
     mail to: @contact.email, subject: "How to open #{@fellow.display_name.split.first}'s Sondage recordings"

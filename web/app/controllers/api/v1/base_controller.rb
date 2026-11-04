@@ -19,6 +19,7 @@ class Api::V1::BaseController < ActionController::API
 
   def require_fellow!
     @fellow = current_user.fellow
-    render json: { error: "This account has no Fellow profile." }, status: :forbidden unless current_user.fellow? && @fellow
+    return render(json: { error: "This account has no Fellow profile." }, status: :forbidden) unless current_user.fellow? && @fellow
+    render json: { error: "This account is closed. Please call Sondage." }, status: :forbidden if @fellow.deceased?
   end
 end

@@ -39,7 +39,7 @@ class Api::V1::RecoveriesController < Api::V1::BaseController
 
   private
 
-  def set_recovery = @recovery = @fellow.recoveries.find(params[:id])
+  def set_recovery = @recovery = @fellow.recoveries.where(inheritance_claim_id: nil).find(params[:id]) # never an heir's request
 
   def payload(r)
     approved = r.approvals.includes(:safety_contact).index_by(&:safety_contact_id)
