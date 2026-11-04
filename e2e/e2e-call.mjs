@@ -195,7 +195,7 @@ await b.win.waitForFunction(() => /1 person has clicked/.test(document.getElemen
 await shot(b.win, "r4-one-in");
 await fetch("http://localhost:3999/test/release", { method: "POST" }); // an admin, after phoning the Fellow
 step("Sondage released its copy");
-await b.win.waitForSelector("#view-home:not([hidden]) [data-join], #view-home:not([hidden]) .card", { timeout: 30000 });
+await b.win.waitForSelector("#view-home:not([hidden]) .feature", { timeout: 30000 });
 step("new computer has the key back");
 await b.win.click('[data-go="vault"]');
 await b.win.waitForSelector("#view-vault:not([hidden]) .capsule-card");
