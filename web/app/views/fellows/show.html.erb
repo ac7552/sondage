@@ -113,6 +113,9 @@
         <% if r.pending? && current_user.admin? %>
           <% if r.sondage_releasable? && !r.ready? && r.inheritance? %>
             <p class="small">The death is confirmed and the waiting period is over. Call <%= r.inheritance_claim.safety_contact.name %> on a number already on file to confirm it's really them asking, then:</p>
+            <% unless SafetyShare.splittable?(@fellow.sondage_share) %>
+              <p class="small">This safety copy was made by an earlier version of the app, so it can't be halved: <%= r.inheritance_claim.safety_contact.first_name %> would receive the signing key too.</p>
+            <% end %>
             <%= button_to "Release Sondage's safety copy to #{r.inheritance_claim.safety_contact.first_name}", release_recovery_path(r), method: :patch, class: "button primary" %>
           <% elsif r.sondage_releasable? && !r.ready? %>
             <p class="small">Call <%= @fellow.display_name.split.first %> on a number already on file and confirm it's really them, then:</p>

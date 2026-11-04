@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  consistency:
+    name: Shared code and script hashes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Copies of shared/ match
+        run: bash scripts/check-shared.sh
+      - name: Published hashes of the browser scripts are current
+        run: node scripts/script-hashes.mjs --check
+
+  desktop:
+    name: Desktop tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci || npm install
+      - run: npm test
+
+  web:
+    name: Rails tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    env:
+      RAILS_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+      # No Gemfile.lock is committed yet; commit the one this produces once it's green.
+      - run: bundle install --jobs 4
+      - run: bin/rails db:prepare
+      - run: bin/rails test
+
+  e2e:
+    name: End to end (Electron + Chrome)
+    runs-on: ubuntu-latest
+    needs: [desktop]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install
+        run: |
+          (cd desktop && (npm ci || npm install))
+          (cd e2e && (npm ci || npm install))
+      - name: Interview, recovery on a new computer, and an heir
+        working-directory: e2e
+        env:
+          CHROME: /usr/bin/google-chrome
+        run: |
+          node server.mjs > server.log 2>&1 &
+          for i in $(seq 1 30); do (echo > /dev/tcp/127.0.0.1/3999) 2>/dev/null && break; sleep 1; done
+          xvfb-run -a node e2e-call.mjs
+          xvfb-run -a node e2e-heir.mjs
+          xvfb-run -a node e2e-journal.mjs
+      - name: Keep screenshots and the server log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-out
+          path: |
+            e2e/out/
+            e2e/server.log

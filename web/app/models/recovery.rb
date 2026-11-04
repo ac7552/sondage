@@ -20,7 +20,14 @@ class Recovery < ApplicationRecord
   def sondage_released? = sondage_released_at.present?
   def sondage_releasable? = pending? && !sondage_released? && Time.current >= release_after && fellow.sondage_share.present?
   def pieces_available = approvals.size + (sondage_released? ? 1 : 0)
-  def ready? = pieces_available >= 2
+
+  # Sondage's piece is always one of the two. Two helpers' pieces never open anything
+  # on their own: every recovery waits out the waiting period and an admin's phone call,
+  # so someone who gets into the Fellow's email can't rebuild the key with one family click.
+  def ready? = sondage_released? && approvals.any?
+
+  # Helpers' pieces are handed to the new computer only once Sondage's is released.
+  def pieces_releasable? = pending? && sondage_released?
 
   def self.wait_hours = Rails.configuration.x.recovery_wait_hours.to_f
 end

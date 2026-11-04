@@ -14,7 +14,8 @@ import * as keys from "../core/keys.js";
 import { RecordingSession } from "../core/capsule.js";
 import { Decrypter, generateX25519Identity, identityToRecipient } from "age-encryption";
 import os from "node:os";
-import { openAndVerify, readReceipt, checkAgainstReceipt } from "../core/verify.js";
+import { openAndVerify, readReceipt, checkAgainstReceipt, expectedFromReceipt } from "../core/verify.js";
+import { certificateHtml } from "../core/certificate.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -233,7 +234,7 @@ handle("keys:mail", async ({ index, fellowName }) => {
   const subject = "My Sondage safety copy";
   const body = c.role === "self"
     ? `This email holds my own safety copy of the key to my Sondage recordings. On its own it can't open anything.\n\nKeep this email. If I ever lose access to my recordings, Sondage will email me, and I'll click this link:\n\n${link}\n`
-    : `Hi ${c.name.split(" ")[0]},\n\nI'm recording my life story with Sondage. This email holds one of four safety copies of the key to my recordings. On its own it can't open anything.\n\nPlease keep this email. If I ever lose access to my recordings, Sondage will email you, and you'll just click this link to help me:\n\n${link}\n\nYou don't need to do anything now. Thank you!\n\n${me}\n`;
+    : `Hi ${c.name.split(" ")[0]},\n\nI'm recording my life story with Sondage. This email holds one of four safety copies of the key to my recordings. On its own it can't open anything.\n\nPlease keep this email. If I ever lose access to my recordings, Sondage will email you. Before you click anything, please call me on a number you already have to check it's really me asking. If it is, click this link:\n\n${link}\n\nIf anyone else asks you for this email or this link, don't share it. You don't need to do anything now. Thank you!\n\n${me}\n`;
   const url = `mailto:${encodeURIComponent(c.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   if (process.env.SONDAGE_MAIL_LOG) {
     // Automated tests: record the email instead of opening a mail app.
@@ -260,7 +261,8 @@ handle("keys:shares", async () => fellowKeys().recoveryShares || []);
 //
 // This computer makes a one-time key and asks Sondage to start a recovery. Each
 // person who approves encrypts their safety copy to that one-time key, so the copies
-// only ever come together here. Two are enough.
+// only ever come together here. Sondage's copy and one other are needed; nothing
+// arrives until Sondage has phoned the Fellow and released its own.
 
 handle("recovery:start", async () => {
   const identity = await generateX25519Identity();
@@ -308,10 +310,10 @@ handle("recovery:status", async () => {
   return { ...summary, done: false, problem: "The safety copies received so far don't fit together. Sondage has been told." };
 });
 // ---------------------------------------------------------------- after a Fellow's death
-// The heir's computer makes a one-time key; the heir's safety copy and Sondage's are
-// locked to it, and come together only here. The rebuilt key must match the Fellow's
-// registered keys, and only its unlocking half is kept: an heir can open and listen,
-// never sign as the Fellow.
+// The heir's computer makes a one-time key; the heir's safety copy and the unlocking
+// half of Sondage's are locked to it, and come together only here. Only the unlocking
+// key is rebuilt and it must match the Fellow's registered one: an heir can open and
+// listen, never sign as the Fellow.
 handle("inherit:start", async ({ claimId }) => {
   const identity = await generateX25519Identity();
   const recipient = await identityToRecipient(identity);
@@ -343,8 +345,10 @@ handle("inherit:status", async ({ claimId }) => {
   for (let i = 0; i < pieces.length; i++) {
     for (let j = i + 1; j < pieces.length; j++) {
       try {
-        const k = await keys.restoreFromShares([pieces[i], pieces[j]]);
-        if (k.ageRecipient !== claim.fellow.age_recipient || (claim.fellow.signing_public_key && k.signingPublicKey !== claim.fellow.signing_public_key)) continue;
+        // Only the unlocking key is rebuilt. Sondage releases just the unlocking half of
+        // its copy to an heir, so the signing key can't be rebuilt here even briefly.
+        const k = await keys.restoreUnlockingKey([pieces[i], pieces[j]]);
+        if (k.ageRecipient !== claim.fellow.age_recipient) continue;
         const list = (store.readSecret("inherited-keys") || []).filter((x) => x.fellowId !== claim.fellow.id);
         list.push({ fellowId: claim.fellow.id, fellowName: claim.fellow.name, ageIdentity: k.ageIdentity, ageRecipient: k.ageRecipient, receivedAt: new Date().toISOString() });
         store.writeSecret("inherited-keys", list);
@@ -404,6 +408,7 @@ handle("rec:manifest", async ({ sessionId, context }) => {
     capsuleId: context.capsuleId || crypto.randomUUID(),
     fellow: { ...context.fellow, signingPublicKey: k.signingPublicKey, ageRecipient: k.ageRecipient },
     timeline,
+    timestampAuthority: store.config().tsaUrl || null,
     software: { app: "Sondage desktop", version: app.getVersion(), electron: process.versions.electron, chromium: process.versions.chrome, os: `${process.platform} ${process.arch}` },
   });
   return { manifestText: built.manifestText, manifestSha256: built.manifestSha256, capsuleId: built.manifest.capsuleId };
@@ -441,7 +446,12 @@ handle("vault:list", async () => {
 handle("vault:verify", async ({ capsulePath, receiptPath }) => {
   const receipt = await readReceipt(receiptPath);
   const matches = await checkAgainstReceipt(capsulePath, receipt);
-  const r = await openAndVerify(capsulePath, openingKeys());
+  // The Fellow's own capsules are checked against the key on this computer, not just the
+  // receipt beside the file. An heir's inherited ones fall back to their receipt.
+  const own = store.readSecret("fellow-keys");
+  const expected = expectedFromReceipt(receipt);
+  if (own && (receipt.encryptedTo || []).includes(own.ageRecipient)) expected.fellowKey = own.signingPublicKey;
+  const r = await openAndVerify(capsulePath, openingKeys(), { expected });
   await r.cleanup();
   return { ok: matches && r.ok, checks: [{ name: "Sealed file matches its receipt", ok: matches }, ...r.checks] };
 });
@@ -455,6 +465,18 @@ handle("vault:openCopy", async ({ capsulePath }) => {
   return { dest, ok: r.ok };
 });
 handle("vault:reveal", ({ file }) => shell.showItemInFolder(file));
+
+// A paper certificate: whose keys sealed it, and the fingerprint of what they signed.
+handle("vault:certificate", async ({ receiptPath }) => {
+  const receipt = await readReceipt(receiptPath);
+  const html = certificateHtml(receipt);
+  const file = receiptPath.replace(/\.receipt\.json$/, ".certificate.html");
+  await fsp.writeFile(file, html);
+  const win = new BrowserWindow({ width: 820, height: 1000, show: true, title: "Sondage certificate", webPreferences: { javascript: false, sandbox: true } });
+  await win.loadFile(file);
+  win.webContents.print({}, () => {});
+  return { file };
+});
 handle("vault:listen", async ({ capsulePath }) => {
   const id = crypto.createHash("sha256").update(capsulePath).digest("hex").slice(0, 16);
   const dir = path.join(listenRoot, id);

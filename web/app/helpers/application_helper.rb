@@ -14,10 +14,14 @@ module ApplicationHelper
   end
 
   # A script from public/sondage, at a path that changes whenever the scripts change.
-  def sondage_script_tag(name)
+  # The pages that handle keys run under a strict policy with no inline script, so they
+  # get no inline fallback (and a fallback that skips the versioned copy isn't wanted there).
+  def sondage_script_tag(name, fallback: true)
+    src = "/sondage/v/#{SondageScriptsController.version}/#{name}"
+    return tag.script(type: "module", src:) unless fallback
     # If the versioned copy can't load for any reason, fall back to the plain file.
-    fallback = "if(!this.dataset.retried){this.dataset.retried=1;var s=document.createElement('script');s.type='module';s.src='/sondage/#{name}?t='+Date.now();document.body.appendChild(s);console.warn('Sondage: loading /sondage/#{name} directly')}"
-    tag.script(type: "module", src: "/sondage/v/#{SondageScriptsController.version}/#{name}", onerror: fallback)
+    retry_js = "if(!this.dataset.retried){this.dataset.retried=1;var s=document.createElement('script');s.type='module';s.src='/sondage/#{name}?t='+Date.now();document.body.appendChild(s);console.warn('Sondage: loading /sondage/#{name} directly')}"
+    tag.script(type: "module", src:, onerror: retry_js)
   end
 
   def page_title(text = nil)

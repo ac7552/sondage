@@ -17,9 +17,10 @@ import { parseWavHeader } from "./wav.js";
 import { fileDigest } from "./capsule.js";
 
 // Decrypts a .capsule.age file into a temporary folder and verifies it.
-// Returns { ok, checks, manifest, objectDir }. Call cleanup() when done.
+// Returns { ok, anchored, checks, manifest, objectDir }. Call cleanup() when done.
 // ageIdentity may be one identity or a list (the Fellow's own, and any inherited ones).
-export async function openAndVerify(capsulePath, ageIdentity, { keepDir } = {}) {
+// expected: see verifyObject.
+export async function openAndVerify(capsulePath, ageIdentity, { keepDir, expected } = {}) {
   const objectDir = keepDir || (await fsp.mkdtemp(path.join(os.tmpdir(), "sondage-open-")));
   const checks = [];
   try {
@@ -32,13 +33,19 @@ export async function openAndVerify(capsulePath, ageIdentity, { keepDir } = {}) 
     checks.push({ name: "Opened with the Fellow's key", ok: false, detail: String(err.message || err) });
     return { ok: false, checks, objectDir, cleanup: () => fsp.rm(objectDir, { recursive: true, force: true }) };
   }
-  const result = await verifyObject(objectDir);
+  const result = await verifyObject(objectDir, { expected });
   result.checks.unshift(...checks);
   return { ...result, objectDir, cleanup: () => fsp.rm(objectDir, { recursive: true, force: true }) };
 }
 
 // Verifies an already-opened OCFL object folder.
-export async function verifyObject(objectDir) {
+//
+// The keys named inside a capsule only prove that whoever holds them signed it. To say
+// *whose* keys they are, compare them with a record from outside the capsule:
+//   expected = { fellowKey, historianKey, manifestSha256 }
+// Each may be a raw base64 public key or a fingerprint ("1A2B 3C4D …"). Without any,
+// the result is ok but not anchored, and says so.
+export async function verifyObject(objectDir, { expected = {} } = {}) {
   const checks = [];
   const add = (name, ok, detail) => checks.push({ name, ok, ...(detail ? { detail } : {}) });
   const content = path.join(objectDir, "v1", "content");
@@ -75,8 +82,9 @@ export async function verifyObject(objectDir) {
   const manifestSha256 = crypto.createHash("sha256").update(manifestBytes).digest("hex");
 
   // Signatures
+  let sigs = null;
   try {
-    const sigs = JSON.parse(await fsp.readFile(path.join(content, "signatures.json"), "utf8"));
+    sigs = JSON.parse(await fsp.readFile(path.join(content, "signatures.json"), "utf8"));
     add("Signatures cover this exact manifest", sigs.manifestSha256 === manifestSha256);
     for (const role of ["fellow", "historian"]) {
       const s = sigs.signatures.find((x) => x.role === role);
@@ -88,13 +96,69 @@ export async function verifyObject(objectDir) {
     add("Signatures", false, String(err.message || err));
   }
 
-  // Timestamp
-  try {
-    const tsr = await fsp.readFile(path.join(content, "timestamp.tsr"));
-    const info = inspectTimestampResponse(tsr, manifestSha256);
-    add("Trusted timestamp covers the manifest", info.granted && info.coversHash, info.genTime ? `Timestamped ${info.genTime} (confirm the authority's certificate with openssl ts -verify)` : undefined);
-  } catch {
-    add("Trusted timestamp", true, "None in this capsule: the time was not independently certified when it was sealed");
+  // Whose keys: compared with a record from outside the capsule.
+  let anchored = false;
+  const anchors = [
+    ["fellow", "Fellow", expected.fellowKey],
+    ["historian", "Historian", expected.historianKey],
+  ];
+  for (const [role, label, want] of anchors) {
+    if (!want) continue;
+    anchored = true;
+    const have = manifest.participants?.[role]?.signingPublicKey;
+    const ok = !!have && sameKey(have, want);
+    add(`${label} key matches the outside record (${fingerprintOf(want)})`, ok, ok ? undefined : `The capsule names key ${have ? fingerprint(have) : "none"}`);
+  }
+  if (expected.manifestSha256) {
+    anchored = true;
+    add("Manifest matches the outside record", expected.manifestSha256.toLowerCase() === manifestSha256);
+  }
+  if (!anchored) {
+    add("Keys compared with an outside record", true, "Not checked. Anyone can make keys and sign a capsule; compare the fingerprints above with the printed certificate or receipt, or run again with --fellow-key or --receipt.");
+  }
+
+  // Seal record and timestamp
+  let tsr = null;
+  try { tsr = await fsp.readFile(path.join(content, "timestamp.tsr")); } catch {}
+  let record = null;
+  if (manifest.sealing) {
+    try {
+      const recordBytes = await fsp.readFile(path.join(content, manifest.sealing.record || "seal.json"));
+      record = JSON.parse(recordBytes);
+      const s = sigs?.seal;
+      const fellowKey = manifest.participants.fellow.signingPublicKey;
+      const ok = !!s && s.publicKey === fellowKey && verifySignature(fellowKey, recordBytes, s.signature) && record.manifestSha256 === manifestSha256 && record.capsuleId === manifest.capsuleId;
+      add("Seal record signed by the Fellow", ok);
+    } catch (err) {
+      add("Seal record signed by the Fellow", false, `The manifest says there is one, but it is missing or unreadable (${err.message || err})`);
+    }
+  }
+  if (record) {
+    const ts = record.timestamp || {};
+    if (ts.status === "granted") {
+      const digest = tsr ? crypto.createHash("sha256").update(tsr).digest("hex") : null;
+      if (!tsr) add("Trusted timestamp", false, "The seal record says one was granted, but timestamp.tsr is missing");
+      else if (digest !== ts.tsrSha256) add("Trusted timestamp", false, "timestamp.tsr is not the one recorded at sealing");
+      else checkTsr();
+    } else if (tsr) {
+      add("Trusted timestamp", false, "timestamp.tsr is present, but the seal record says none was granted");
+    } else if (manifest.sealing.timestampRequested) {
+      add("Trusted timestamp", true, `Asked for from ${ts.authority || manifest.sealing.timestampAuthority}, but the service wasn't reachable when it was sealed (${ts.status}). The time was not independently certified.`);
+    } else {
+      add("Trusted timestamp", true, "Not asked for when it was sealed: the time was not independently certified");
+    }
+  } else if (!manifest.sealing) {
+    // Capsules from before the seal record.
+    if (tsr) checkTsr();
+    else add("Trusted timestamp", true, "None in this capsule: the time was not independently certified when it was sealed (made by an earlier version, which can't show whether one was asked for)");
+  }
+  function checkTsr() {
+    try {
+      const info = inspectTimestampResponse(tsr, manifestSha256);
+      add("Trusted timestamp covers the manifest", info.granted && info.coversHash, info.genTime ? `Timestamped ${info.genTime} (confirm the authority's certificate with openssl ts -verify)` : undefined);
+    } catch (err) {
+      add("Trusted timestamp covers the manifest", false, String(err.message || err));
+    }
   }
 
   // Files and hash chains
@@ -138,7 +202,26 @@ export async function verifyObject(objectDir) {
     add(`${f.file}: file hash`, digest === f.sha256);
   }
 
-  return { ok: checks.every((c) => c.ok), checks, manifest, manifestSha256 };
+  return { ok: checks.every((c) => c.ok), anchored, checks, manifest, manifestSha256 };
+}
+
+// Keys may be given raw (base64, 32 bytes) or as a fingerprint people read aloud.
+const normFp = (s) => String(s).replace(/[\s:-]/g, "").toUpperCase();
+function isFingerprint(s) {
+  return /^[0-9A-F]{16}$/.test(normFp(s));
+}
+function fingerprintOf(s) {
+  return isFingerprint(s) ? normFp(s).match(/.{4}/g).join(" ") : fingerprint(s);
+}
+function sameKey(rawKey, want) {
+  if (isFingerprint(want)) return normFp(fingerprint(rawKey)) === normFp(want);
+  return rawKey === String(want).trim();
+}
+
+// What a receipt says about a capsule, in the form verifyObject expects.
+export function expectedFromReceipt(receipt) {
+  const key = (role) => receipt?.signatures?.find((s) => s.role === role)?.publicKey;
+  return { fellowKey: key("fellow"), historianKey: key("historian"), manifestSha256: receipt?.manifestSha256 };
 }
 
 export async function readReceipt(receiptPath) {

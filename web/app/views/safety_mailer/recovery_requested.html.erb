@@ -5,11 +5,12 @@
   <p><strong>If you didn't ask for this,</strong> call Sondage straight away.</p>
 <% elsif @contact.role == "self" %>
   <p>You asked to get your Sondage recordings back on a new computer.</p>
-  <p>Open the email you sent yourself titled <strong>“My Sondage safety copy”</strong> and click the button inside it. Your family will be asked to help too.</p>
+  <p>Open the email you sent yourself titled <strong>“My Sondage safety copy”</strong> and click the button inside it. Your family will be asked to help too, and someone from Sondage will call you before anything opens.</p>
   <p><strong>If you didn't ask for this,</strong> call Sondage straight away.</p>
 <% else %>
   <p><%= @fellow_name %> asked to get their Sondage recordings back on a new computer, and needs your help.</p>
-  <p>Find the email <%= @fellow_name.split.first %> sent you titled <strong>“My Sondage safety copy”</strong>, and click the button inside it. It takes a minute.</p>
-  <p><strong>Not sure it was really them?</strong> Call <%= @fellow_name.split.first %> before you click. If it wasn't, the same page lets you stop it.</p>
+  <p><strong>First, call <%= @fellow_name.split.first %> on a number you already have</strong> (not one from an email or message) and check it was really them.</p>
+  <p>If it was, find the email <%= @fellow_name.split.first %> sent you titled <strong>“My Sondage safety copy”</strong>, and click the button inside it. If it wasn't, the same page lets you stop it.</p>
+  <p>Sondage will also call <%= @fellow_name.split.first %>, and waits a few days before anything opens.</p>
 <% end %>
 <p style="color:#7a7468;font-size:15px">Requested <%= @recovery.created_at.strftime("%B %-d at %-l:%M %p") %>. Sondage can't open anyone's recordings, which is why this needs your help.</p>

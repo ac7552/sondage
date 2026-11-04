@@ -56,36 +56,74 @@ export function fingerprint(publicKeyRawB64) {
   return h.slice(0, 16).toUpperCase().match(/.{4}/g).join(" ");
 }
 
-// Recovery: only the two 32-byte secrets are split (the Ed25519 seed and the age
-// X25519 key); everything else is rebuilt from them. Any `threshold` shares restore
-// the keys; fewer reveal nothing. Shares are printed in groups of four so a person
-// can copy one by hand.
+// Recovery. The two 32-byte secrets (the age X25519 key that opens capsules, and the
+// Ed25519 seed that signs them) are split separately, with the same threshold, and each
+// safety copy carries one share of each:
+//
+//   copy = unlockingShare (33 bytes) || signingShare (33 bytes)      — 66 bytes, 132 hex
+//
+// Any `threshold` copies restore both keys; fewer reveal nothing. Because the halves
+// are independent, Sondage can release only the unlocking half of its copy to an heir:
+// the heir can then open and listen, and can never rebuild the signing key.
+// Copies made by earlier versions (65 bytes: one share of both secrets together) still
+// restore, but can't be split this way.
+// Shares are printed in groups of four so a person can copy one by hand.
 
 const PKCS8_ED25519_PREFIX = Buffer.from("302e020100300506032b657004220420", "hex");
+const HALF = 33; // a Shamir share of a 32-byte secret
+const LEGACY = 65; // a Shamir share of the 64-byte (seed || x25519) secret
 
 export async function splitForRecovery(keys, { shares = 3, threshold = 2 } = {}) {
-  const seed = Buffer.from(keys.signingPrivateKey, "base64").subarray(-32);
-  const x25519 = bech32Decode(keys.ageIdentity, "AGE-SECRET-KEY-");
-  const parts = await split(new Uint8Array(Buffer.concat([seed, x25519])), shares, threshold);
-  return parts.map((p, i) => `SONDAGE-${i + 1} ` + Buffer.from(p).toString("hex").toUpperCase().match(/.{1,4}/g).join(" "));
+  const seed = new Uint8Array(Buffer.from(keys.signingPrivateKey, "base64").subarray(-32));
+  const x25519 = new Uint8Array(bech32Decode(keys.ageIdentity, "AGE-SECRET-KEY-"));
+  const unlocking = await split(x25519, shares, threshold);
+  const signing = await split(seed, shares, threshold);
+  return unlocking.map((u, i) => formatShare(i + 1, Buffer.concat([u, signing[i]])));
 }
 
-export async function restoreFromShares(shareStrings) {
-  const parts = shareStrings
-    .map((s) => s.trim())
+const formatShare = (n, bytes) => `SONDAGE-${n} ` + Buffer.from(bytes).toString("hex").toUpperCase().match(/.{1,4}/g).join(" ");
+
+function parseShares(shareStrings) {
+  return shareStrings
+    .map((s) => String(s).trim())
     .filter(Boolean)
     .map((s) => {
       // "SONDAGE-2 3809 390C …": the number is a label; the share carries its own position.
       const m = s.match(/^(?:SONDAGE-\d+[\s:]+)?([0-9A-F\s]+)$/i);
       const hex = m ? m[1].replace(/\s+/g, "") : "";
       if (!hex || hex.length % 2) throw new Error("That doesn't look like a Sondage recovery share");
-      return new Uint8Array(Buffer.from(hex, "hex"));
+      return Buffer.from(hex, "hex");
     });
+}
+
+// Just the unlocking half of a copy: what Sondage releases to an heir.
+export function unlockingHalf(shareString) {
+  const [p] = parseShares([shareString]);
+  if (p.length !== 2 * HALF) throw new Error("This safety copy can't be split (it was made by an earlier version)");
+  return p.subarray(0, HALF).toString("hex").toUpperCase();
+}
+
+async function combineHalf(parts, which) {
+  return Buffer.from(await combine(parts.map((p) => new Uint8Array(p.subarray(which * HALF, (which + 1) * HALF)))));
+}
+
+export async function restoreFromShares(shareStrings) {
+  const parts = parseShares(shareStrings);
   if (parts.length < 2) throw new Error("Two recovery shares are needed");
-  const secret = Buffer.from(await combine(parts));
-  if (secret.length !== 64) throw new Error("These shares don't belong together");
-  const privateKey = crypto.createPrivateKey({ key: Buffer.concat([PKCS8_ED25519_PREFIX, secret.subarray(0, 32)]), format: "der", type: "pkcs8" });
-  const ageIdentity = bech32Encode("AGE-SECRET-KEY-", secret.subarray(32));
+  let seed, x25519;
+  if (parts.every((p) => p.length === 2 * HALF)) {
+    x25519 = await combineHalf(parts, 0);
+    seed = await combineHalf(parts, 1);
+  } else if (parts.every((p) => p.length === LEGACY)) {
+    const secret = Buffer.from(await combine(parts.map((p) => new Uint8Array(p))));
+    seed = secret.subarray(0, 32);
+    x25519 = secret.subarray(32);
+  } else {
+    throw new Error("These shares don't belong together");
+  }
+  if (seed.length !== 32 || x25519.length !== 32) throw new Error("These shares don't belong together");
+  const privateKey = crypto.createPrivateKey({ key: Buffer.concat([PKCS8_ED25519_PREFIX, seed]), format: "der", type: "pkcs8" });
+  const ageIdentity = bech32Encode("AGE-SECRET-KEY-", x25519);
   return {
     version: 1,
     createdAt: new Date().toISOString(),
@@ -94,6 +132,25 @@ export async function restoreFromShares(shareStrings) {
     ageIdentity,
     ageRecipient: await identityToRecipient(ageIdentity),
   };
+}
+
+// An heir's restore: only the unlocking key is ever rebuilt. Accepts full copies and
+// unlocking halves; the signing halves, if present, are never combined.
+export async function restoreUnlockingKey(shareStrings) {
+  const parts = parseShares(shareStrings);
+  if (parts.length < 2) throw new Error("Two recovery shares are needed");
+  let x25519;
+  if (parts.every((p) => p.length === HALF || p.length === 2 * HALF)) {
+    x25519 = await combineHalf(parts, 0);
+  } else if (parts.every((p) => p.length === LEGACY)) {
+    // Earlier copies hold both secrets together; keep only the unlocking part.
+    x25519 = Buffer.from(await combine(parts.map((p) => new Uint8Array(p)))).subarray(32);
+  } else {
+    throw new Error("These shares don't belong together");
+  }
+  if (x25519.length !== 32) throw new Error("These shares don't belong together");
+  const ageIdentity = bech32Encode("AGE-SECRET-KEY-", x25519);
+  return { ageIdentity, ageRecipient: await identityToRecipient(ageIdentity) };
 }
 
 // Minimal Bech32 (BIP 173), as used by age for its keys.

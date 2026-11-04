@@ -138,15 +138,118 @@ test("chunks must arrive in order and cannot be silently replaced", async () => 
   await fsp.rm(tmp, { recursive: true, force: true });
 });
 
-test("recovery shares: any 2 of 3 restore the keys", async () => {
+test("recovery shares: any 2 of 4 restore the keys", async () => {
   const k = await keys.generateFellowKeys();
-  const shares = await keys.splitForRecovery(k);
-  assert.equal(shares.length, 3);
+  const shares = await keys.splitForRecovery(k, { shares: 4, threshold: 2 });
+  assert.equal(shares.length, 4);
+  for (const s of shares) assert.equal(s.replace(/^SONDAGE-\d+\s+/, "").replace(/\s+/g, "").length, 132);
+  for (const [i, j] of [[0, 1], [2, 0], [1, 3], [3, 2]]) {
+    const restored = await keys.restoreFromShares([shares[i], shares[j]]);
+    assert.equal(restored.ageIdentity, k.ageIdentity);
+    assert.equal(restored.signingPrivateKey, k.signingPrivateKey);
+  }
   const restored = await keys.restoreFromShares([shares[2], shares[0]]);
-  assert.equal(restored.ageIdentity, k.ageIdentity);
-  assert.equal(restored.signingPrivateKey, k.signingPrivateKey);
   const sig = keys.sign(restored, Buffer.from("hello"));
   assert.ok(keys.verify(k.signingPublicKey, Buffer.from("hello"), sig));
+});
+
+test("an heir gets only the unlocking key: Sondage's unlocking half can't rebuild the signing key", async () => {
+  const k = await keys.generateFellowKeys();
+  const [, heir, , sondage] = await keys.splitForRecovery(k, { shares: 4, threshold: 2 });
+  const half = keys.unlockingHalf(sondage);
+  assert.equal(half.length, 66);
+  const unlocked = await keys.restoreUnlockingKey([heir, half]);
+  assert.equal(unlocked.ageIdentity, k.ageIdentity);
+  assert.equal(unlocked.ageRecipient, k.ageRecipient);
+  assert.equal(unlocked.signingPrivateKey, undefined);
+  // A half is not a whole copy: the full restore refuses it.
+  await assert.rejects(keys.restoreFromShares([heir, half]), /don't belong together/);
+});
+
+test("copies made by earlier versions (both secrets in one share) still restore", async () => {
+  const { split } = await import("shamir-secret-sharing");
+  const k = await keys.generateFellowKeys();
+  const seed = Buffer.from(k.signingPrivateKey, "base64").subarray(-32);
+  const parts = await split(new Uint8Array(Buffer.concat([seed, bech32X25519(k.ageIdentity)])), 3, 2);
+  const legacy = parts.map((p, i) => `SONDAGE-${i + 1} ` + Buffer.from(p).toString("hex").toUpperCase());
+  const restored = await keys.restoreFromShares([legacy[0], legacy[2]]);
+  assert.equal(restored.ageIdentity, k.ageIdentity);
+  assert.equal(restored.signingPrivateKey, k.signingPrivateKey);
+  assert.equal((await keys.restoreUnlockingKey([legacy[1], legacy[2]])).ageIdentity, k.ageIdentity);
+});
+
+// age's Bech32 secret key back to its 32 bytes (test helper; mirrors keys.js).
+function bech32X25519(identity) {
+  const CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
+  const s = identity.toLowerCase();
+  const data = [...s.slice(s.lastIndexOf("1") + 1)].map((c) => CHARSET.indexOf(c)).slice(0, -6);
+  let acc = 0, bits = 0;
+  const out = [];
+  for (const v of data) {
+    acc = (acc << 5) | v;
+    bits += 5;
+    while (bits >= 8) { bits -= 8; out.push((acc >> bits) & 255); }
+  }
+  return Buffer.from(out);
+}
+
+test("the verifier compares keys with an outside record, and says when it hasn't", async () => {
+  const tmp = await fsp.mkdtemp(path.join(os.tmpdir(), "sondage-test-"));
+  const fellow = await keys.generateFellowKeys();
+  const historian = await historianKeys();
+  const { s, built } = await recordSession(tmp, fellow, historian);
+  const historianSignature = await historian.sign(Buffer.from(built.manifestText));
+  const { receipt, capsulePath } = await s.seal({ fellowKeys: fellow, historianSignature, historianPublicKey: historian.publicKey, vaultDir: path.join(tmp, "v"), tsaUrl: null });
+
+  const bare = await openAndVerify(capsulePath, fellow.ageIdentity);
+  assert.ok(bare.ok);
+  assert.equal(bare.anchored, false);
+  await bare.cleanup();
+
+  const right = await openAndVerify(capsulePath, fellow.ageIdentity, { expected: { fellowKey: keys.fingerprint(fellow.signingPublicKey), historianKey: historian.publicKey, manifestSha256: receipt.manifestSha256 } });
+  for (const c of right.checks) assert.ok(c.ok, `${c.name}: ${c.detail || ""}`);
+  assert.equal(right.anchored, true);
+  await right.cleanup();
+
+  // A forger can make a capsule that checks out on its own, but not one that matches the record.
+  const other = await keys.generateFellowKeys();
+  const wrong = await openAndVerify(capsulePath, fellow.ageIdentity, { expected: { fellowKey: keys.fingerprint(other.signingPublicKey) } });
+  assert.equal(wrong.ok, false);
+  assert.ok(wrong.checks.some((c) => c.name.startsWith("Fellow key matches") && !c.ok));
+  await wrong.cleanup();
+  await fsp.rm(tmp, { recursive: true, force: true });
+});
+
+test("the seal record makes a removed or swapped timestamp detectable", async () => {
+  const tmp = await fsp.mkdtemp(path.join(os.tmpdir(), "sondage-test-"));
+  const fellow = await keys.generateFellowKeys();
+  const historian = await historianKeys();
+  const { s, built } = await recordSession(tmp, fellow, historian);
+  assert.deepEqual(built.manifest.sealing, { record: "seal.json", timestampRequested: false, timestampAuthority: null });
+  const historianSignature = await historian.sign(Buffer.from(built.manifestText));
+  const { capsulePath } = await s.seal({ fellowKeys: fellow, historianSignature, historianPublicKey: historian.publicKey, vaultDir: path.join(tmp, "v"), tsaUrl: null });
+
+  const o = await openAndVerify(capsulePath, fellow.ageIdentity);
+  assert.ok(o.checks.find((c) => c.name === "Seal record signed by the Fellow").ok);
+  const content = path.join(o.objectDir, "v1/content");
+
+  // A timestamp file appearing that the seal record never mentioned is refused.
+  await fsp.writeFile(path.join(content, "timestamp.tsr"), Buffer.from([0x30, 0x00]));
+  assert.equal((await verifyObject(o.objectDir)).checks.find((c) => c.name === "Trusted timestamp").ok, false);
+  await fsp.rm(path.join(content, "timestamp.tsr"));
+
+  // Editing the seal record (say, to claim a timestamp) breaks the Fellow's signature on it.
+  const sealFile = path.join(content, "seal.json");
+  const record = JSON.parse(await fsp.readFile(sealFile, "utf8"));
+  record.timestamp.status = "granted";
+  await fsp.writeFile(sealFile, JSON.stringify(record, null, 2) + "\n");
+  assert.equal((await verifyObject(o.objectDir)).checks.find((c) => c.name === "Seal record signed by the Fellow").ok, false);
+
+  // Deleting it is detected too: the signed manifest says it must be there.
+  await fsp.rm(sealFile);
+  assert.equal((await verifyObject(o.objectDir)).checks.find((c) => c.name === "Seal record signed by the Fellow").ok, false);
+  await o.cleanup();
+  await fsp.rm(tmp, { recursive: true, force: true });
 });
 
 test("RFC 3161 query is valid DER", async (t) => {

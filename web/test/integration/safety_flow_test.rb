@@ -30,7 +30,7 @@ class SafetyFlowTest < ActionDispatch::IntegrationTest
     @pieces.each { |p| refute_includes SafetyContact.pluck(:piece_sha256), p }
   end
 
-  test "a recovery needs two pieces, and they reach only the new computer" do
+  test "a recovery needs Sondage's piece and one other, and they reach only the new computer" do
     assert_enqueued_emails 4 do # 3 holders + 1 admin
       post "/api/v1/recoveries", params: { recipient: recipient }, headers: @auth, as: :json
     end
@@ -46,17 +46,52 @@ class SafetyFlowTest < ActionDispatch::IntegrationTest
     assert_response :success
     get "/api/v1/recoveries/#{id}", headers: @auth
     body = response.parsed_body
-    assert_equal 1, body["pieces"].size
+    assert_equal [], body["pieces"], "helpers' pieces stay back until Sondage's is released"
     assert_nil body.dig("sondage", "piece"), "Sondage's piece stays back until an admin releases it"
+    assert body["contacts"].find { |c| c["name"] == "Ana" }["approved"]
 
-    # An admin releases Sondage's copy after phoning the Fellow.
-    sign_in_as_admin
-    patch "/recoveries/#{id}/release"
-    get "/api/v1/recoveries/#{id}", headers: @auth
-    assert_equal @fellow.reload.sondage_share, response.parsed_body.dig("sondage", "piece")
+    # An admin releases Sondage's copy after phoning the Fellow and the waiting period.
+    travel_to(Recovery.find(id).release_after + 1.minute) do
+      sign_in_as_admin
+      patch "/recoveries/#{id}/release"
+      get "/api/v1/recoveries/#{id}", headers: @auth
+      assert_equal @fellow.reload.sondage_share, response.parsed_body.dig("sondage", "piece")
+      assert_equal [ "sealed-for-new-computer" ], response.parsed_body["pieces"].map { |p| p["encrypted_piece"] }
+    end
 
     post "/api/v1/recoveries/#{id}/complete", headers: @auth
     assert_equal "complete", Recovery.find(id).status
+  end
+
+  test "two helpers' pieces never open anything without Sondage" do
+    # Someone in the Fellow's email clicks the Fellow's own safety email; one relative clicks too.
+    post "/api/v1/recoveries", params: { recipient: recipient }, headers: @auth, as: :json
+    id = response.parsed_body["id"]
+    [ @pieces[0], @pieces[1] ].each do |p|
+      post "/safety/approve", params: { piece_sha256: sha(p), recovery_id: id, encrypted_piece: "sealed" }, as: :json
+      assert_response :success
+    end
+    get "/api/v1/recoveries/#{id}", headers: @auth
+    assert_equal [], response.parsed_body["pieces"]
+    refute Recovery.find(id).ready?
+
+    # Even past the waiting period, nothing moves until an admin releases Sondage's copy.
+    travel_to(Recovery.find(id).release_after + 1.day) do
+      get "/api/v1/recoveries/#{id}", headers: @auth
+      assert_equal [], response.parsed_body["pieces"]
+    end
+  end
+
+  test "Sondage's copy can't be released before the waiting period" do
+    was = Rails.configuration.x.recovery_wait_hours
+    Rails.configuration.x.recovery_wait_hours = 72
+    post "/api/v1/recoveries", params: { recipient: recipient }, headers: @auth, as: :json
+    id = response.parsed_body["id"]
+    sign_in_as_admin
+    patch "/recoveries/#{id}/release"
+    refute Recovery.find(id).sondage_released?
+  ensure
+    Rails.configuration.x.recovery_wait_hours = was
   end
 
   test "a family member can stop a request that wasn't the Fellow" do

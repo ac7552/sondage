@@ -1,4 +1,6 @@
 class MeetingsController < ApplicationController
+  include StrictPagePolicy
+  strict_page_policy only: :room, worklets: true
   before_action :set_fellow, only: %i[new create]
   before_action :require_admin, only: %i[new create]
   before_action :set_meeting, only: %i[show update room]

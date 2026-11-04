@@ -48,6 +48,7 @@ contextBridge.exposeInMainWorld("sondage", {
     verify: (capsulePath, receiptPath) => call("vault:verify", { capsulePath, receiptPath }),
     openCopy: (capsulePath) => call("vault:openCopy", { capsulePath }),
     reveal: (file) => call("vault:reveal", { file }),
+    certificate: (receiptPath) => call("vault:certificate", { receiptPath }),
     listen: (capsulePath) => call("vault:listen", { capsulePath }),
   },
 });

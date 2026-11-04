@@ -19,11 +19,12 @@ grows through intake, the 10x10 session, and after delivery.
 
 ## What was tested, and what wasn't
 
-- **Sealing, encryption and verification** (`desktop/test`): 6 automated tests, all passing. They cover recording, signing, sealing, opening only with the Fellow's key, detecting a single changed audio sample, detecting an edited manifest, refusing a forged historian signature, out-of-order and replaced chunks, recovery shares, and chunk transfer surviving a dropped connection.
+- **Sealing, encryption and verification** (`desktop/test`): 6 automated tests passing before the hardening changes, plus new ones for the split safety copies, anchored verification and the seal record (not yet run). They cover recording, signing, sealing, opening only with the Fellow's key, detecting a single changed audio sample, detecting an edited manifest, refusing a forged historian signature, out-of-order and replaced chunks, recovery shares, and chunk transfer surviving a dropped connection.
 - **The whole journey, end to end** (`e2e/`): passing. A Fellow sets up safety copies, joins a video interview that the historian starts and stops, and the recording is saved, checked and played back in the app. Then the computer is "lost": a second, empty copy of the app gets the key back when the Fellow and Sondage approve, and opens the same recording.
 - **The interview itself:** passing for audio and for video interviews. The Electron app and the historian's page in Chrome connect peer to peer and record raw 32-bit float audio on both sides; the historian's chunks travel straight to the Fellow's app. The historian's browser checks the manifest byte for byte before co-signing, then the capsule is sealed, encrypted, and verified both from the app and from the command line.
 - **The Rails app was not booted.** The sandbox it was built in couldn't reach rubygems.org, so `bundle install` was impossible. Every Ruby and ERB file passes a syntax check, and its JavaScript and CSS (timeline, historian room) were exercised by the end-to-end test through a stand-in server. The Rails tests in `web/test` (including sign-in, receipts, the call channel and the safety-copy flow) are written but haven't been run. **Run `bin/setup` and `bin/rails test` first, and expect some small fixes.**
 - **Trusted timestamps** weren't reachable from the sandbox. The request format was validated with OpenSSL, and the app seals without certification (and says so) when the service is down.
+- **The hardening changes** (live witnessing, the recovery gate, split safety copies, the seal record, anchored verification, the strict page policy, OPFS storage in the historian's browser, the room checklist) were written without being able to install dependencies or run anything, so none of them has run yet. Tests for them are in `desktop/test`, `web/test/integration` and `e2e/`. CI (`.github/workflows/ci.yml`) runs all of it; **expect a round of small fixes the first time it runs.**
 
 ## Running it
 
@@ -70,22 +71,50 @@ node server.mjs &            # stand-in for the Rails app on :3999
 node e2e-call.mjs            # full interview; screenshots in e2e/out/
 ```
 
+`scripts/check-shared.sh` fails if the copies of `shared/` have drifted, and
+`node scripts/script-hashes.mjs --check` fails if the published script hashes are out
+of date. CI runs both, the desktop tests on macOS, Windows and Linux, the Rails tests,
+and the end-to-end tests under xvfb.
+
 ## How the guarantees work
 
 **Unadulterated.** The live call is only for talking. Each person's microphone is
 recorded separately on their own device, with echo cancellation, noise suppression,
 automatic gain and voice isolation all switched off, as 32-bit float samples at the
 device's own rate (no resampling), in 10-second chunks. The device check shows the
-Fellow what their computer is doing to their voice and won't continue while any
-processing is on. Video, when chosen, is recorded locally too; it has to be compressed,
-so the manifest labels it as such and the WAV audio stays the master record.
+Fellow the processing the browser reports, and won't continue while any of it is on.
+The promise is **no processing the app could detect or switch off**: the operating
+system (Windows audio enhancements, macOS voice isolation) and some headsets can
+process sound before the browser sees it, without reporting it. Video, when chosen, is
+recorded locally too; it has to be compressed, so the manifest labels it as such and
+the WAV audio stays the master record.
 
 **Unchanged.** Every chunk is hashed the moment it's written, and each hash commits to
 the one before it, so a missing, reordered or altered chunk breaks the chain. At the
-end, the manifest describes every byte. The historian's browser checks its own tracks
-against what it recorded before signing, and then both people sign it (Ed25519).
+end, the manifest describes every byte.
+
+Both sides are witnessed by the other person. The historian's browser checks its own
+tracks against what it recorded. The Fellow's app also sends the historian's page each
+of its own chunks' hash and chain link as it's written, over the call; the page keeps
+them (in its private storage, so a reload doesn't lose them) and refuses to sign if
+the manifest's Fellow tracks differ, are missing pieces, or if any piece was reported
+twice with different contents. So the co-signature means the historian saw the
+Fellow's recording grow, live, not just a summary at the end. Then both people sign
+the manifest (Ed25519).
+
 An independent RFC 3161 authority timestamps its fingerprint; only the hash leaves the
-computer. The package is an OCFL 1.1 object with SHA-512 fixity.
+computer. The signed manifest says whether a timestamp was asked for, and a seal
+record (`seal.json`, signed by the Fellow) says whether it was granted and the hash of
+the token, so removing or swapping `timestamp.tsr` is detected. The package is an OCFL
+1.1 object with SHA-512 fixity.
+
+**Whose keys.** A capsule's signatures prove that whoever holds the named keys signed
+it; they don't say whose keys those are. That has to come from outside the capsule.
+The verifier compares the keys with an outside record when given one
+(`--fellow-key <fingerprint>`, `--historian-key`, or `--receipt`) and says plainly when
+it hasn't. The desktop app checks the Fellow's own capsules against the key on that
+computer. **Print a certificate** on each recording gives a one-page paper record of
+both key fingerprints and the manifest fingerprint.
 
 **Theirs alone.** The Fellow's keys are created on their computer, kept in the
 operating system's keychain, and never seen by them. The capsule is encrypted with
@@ -96,11 +125,24 @@ receives only a public receipt: fingerprints, signatures and the timestamp.
 
 **Never lost: four safety copies.** At setup the key is split (Shamir, 2 of 4) into four
 safety copies: one for the Fellow, one each for two people they trust, and one for
-Sondage. Any two rebuild the key; one alone reveals nothing.
+Sondage. One alone reveals nothing.
+
+The two secrets, the key that opens capsules and the key that signs them, are split
+separately; each copy holds one share of each (66 bytes + 66 bytes). That lets Sondage
+give an heir only the opening half of its copy.
 - The Fellow's and family's copies go out as emails **from the Fellow's own email app**, so they never pass through Sondage. Sondage stores its own copy (encrypted at rest) and only a fingerprint of the others.
 - On a new computer, the Fellow clicks **Send the emails**. Each holder gets a short email and clicks the button in their safety email. Their copy travels only in the part of the link after `#`, which browsers never send to a server. It is encrypted in their browser to a one-time key made by the new computer, so the copies only ever come together there.
-- Sondage releases its own copy only after an admin phones the Fellow, and after a waiting period (`RECOVERY_WAIT_HOURS`, 72 hours in production). The family is emailed straight away and can stop a request that isn't the Fellow.
+- **Sondage's copy is always one of the two.** Helpers' approvals are stored, but no piece reaches the new computer until an admin has phoned the Fellow on a number already on file and released Sondage's copy, after a waiting period (`RECOVERY_WAIT_HOURS`, 72 hours in production). Two helpers' copies never open anything on their own. This matters because the Fellow's own copy sits in the same inbox that resets their Sondage password: without the gate, someone who got into that inbox could rebuild the key with one relative's click.
+- Everyone is emailed when a recovery starts and can stop it. The emails ask helpers to call the Fellow on a number they already have before clicking.
 - The restored key is checked against the one registered for the account.
+
+The safety page and the interview room run under a strict Content Security Policy (no
+inline or third-party script; they can only talk to Sondage), so an injected script has
+nowhere to send a piece. That can't protect against Sondage's own server sending
+different code; for that, the SHA-384 of every script those pages run is published in
+`web/public/sondage/hashes.json`, regenerated by `node scripts/script-hashes.mjs` and
+checked in CI, so any change shows up in review and anyone can compare a live server
+with the repository.
 
 **Human-made.** No AI anywhere in collection, recording, transcription or
 interpretation. Every capsule carries an empty Generative Information Package folder
@@ -115,7 +157,8 @@ inventory.json (+ .sha512)          SHA-512 of every file
 v1/content/
   manifest.json                     every file, its SHA-256, every chunk's hash and chain link,
                                     devices, processing settings, participants, provenance log
-  signatures.json                   Fellow and historian, Ed25519 over manifest.json
+  signatures.json                   Fellow and historian, Ed25519 over manifest.json; Fellow over seal.json
+  seal.json                         what happened at sealing: timestamp granted or not, and its hash
   timestamp.tsr                     RFC 3161 token (when the service was reachable)
   audio/fellow-audio.wav            32-bit float, one channel
   audio/historian-audio.wav
@@ -125,22 +168,27 @@ v1/content/
   VERIFY.txt                        how to check it without any Sondage software
 ```
 
-Check one from `desktop/`: `npm run verify -- <file>.capsule.age --identity <key file> [--extract <folder>]`,
-or follow `VERIFY.txt` by hand.
+Check one from `desktop/`: `npm run verify -- <file>.capsule.age --identity <key file> --fellow-key "<fingerprint>" [--extract <folder>]`,
+or follow `VERIFY.txt` by hand. Without `--fellow-key` or `--receipt` it reports
+"verified, but not anchored".
 
 ## Before this goes in front of a Fellow
 
 - **Boot and test the Rails app.** See above.
 - **TURN server.** Without one (coturn, via `TURN_URL`, `TURN_USERNAME`, `TURN_PASSWORD`), calls between some home networks won't connect.
 - **Signed installers** with Apple notarization and a Windows certificate (for example with electron-builder). Then point `DESKTOP_*_URL` at them for the download page.
-- **The historian's browser keeps unsent chunks in memory.** A crash or reload before they reach the Fellow loses them. Storing them in the browser's private file storage (OPFS) is the next step.
+- **The historian's browser** now keeps unsent chunks in its private file storage (OPFS) until the Fellow's app confirms them, and sends them again after a reload. Browsers without OPFS fall back to memory, as before.
 - **Timestamp authority:** choose one for production and record its CA certificate alongside the verifier.
-- **Safety copies:** replacing a helper later needs a new key for future recordings (older recordings keep the old one). Sondage should confirm that holding one of four copies fits "Sondage retains no keys".
+- **Safety copies:** replacing a helper later needs a new key for future recordings (older recordings keep the old one). There's no key history yet; build one (in the account and in each capsule's manifest) before the first rotation, so older capsules still verify against an outside record. Sondage should confirm that holding one of four copies, and being required for every recovery, fits "Sondage retains no keys".
+- **Copies made before the split** (65-byte shares) still restore, but can't be halved, so an heir would receive the signing key too. The admin page says so. Existing Fellows need new copies (and new safety emails) to get the split.
+- **The Fellow's own safety copy** still goes to their own inbox. The recovery gate makes that safe against an inbox takeover alone, but a printed copy, or a second address, would be better still.
 - **The Fellow's web pages** (intake questions, 10x10 lists, adding to the timeline) have bigger text and plainer words on the home page, but deserve the same one-step-per-screen redesign as the desktop app.
 - **Video files** from the browser recorder lack a duration header; most players cope, but archival copies should be remuxed (without re-encoding) at sealing.
 - **Linux without a keychain** falls back to a file readable only by the user. The app says so.
 - **Identity verification** at onboarding, human transcription as a later version beside the sealed originals, and encrypted upload to storage the Fellow chooses are designed but not built.
-- **Questions for Sondage:** whether an encrypted cloud copy nobody else can read satisfies Non-Custodial Sovereignty, and whether compressed video is acceptable alongside the uncompressed audio.
+- **Questions for Sondage:** whether an encrypted cloud copy nobody else can read satisfies Non-Custodial Sovereignty, whether holding one of four safety copies (and gating every recovery) satisfies "retains no keys", and whether compressed video is acceptable alongside the uncompressed audio. Get these answered in writing; they decide the architecture.
+- **Test with two or three real Fellows** before building more, especially safety-copy setup: three contacts, sending emails and understanding why is where people will drop off.
+- **Hardware processing:** a one-time check that plays a test tone and records it would catch some OS or headset processing the browser can't report. Not built.
 
 
 ## Journal and matching
@@ -173,7 +221,7 @@ In the desktop app (Help → After I die), the Fellow ticks which family helpers
 1. The heir opens their safety email and presses "Tell Sondage that … has died". Admins are emailed, and so is the Fellow's own address, in case it isn't true.
 2. An admin checks (obituary or certificate, a call with the family), writes how they checked, and presses Confirm on the Fellow's profile. Sondage makes an heir account and emails a password link and instructions.
 3. After the waiting period (`INHERITANCE_WAIT_DAYS`, 14 in production), the heir signs into the Sondage app, points it at the Fellow's recordings folder (copied from their computer or a backup) and presses "Ask for the key". They confirm from their safety email; an admin calls them and releases Sondage's copy.
-4. The heir's copy plus Sondage's rebuild the key on the heir's computer. It's checked against the Fellow's registered keys, and only the unlocking half is kept: the heir can check and play the recordings, never sign as the Fellow.
+4. Sondage releases only the **unlocking half** of its copy, and only the heir's own piece is used (other helpers can still stop the request). Together they rebuild just the key that opens capsules, on the heir's computer, checked against the Fellow's registered one. The signing key is never rebuilt, even briefly: the heir can check and play the recordings, never sign as the Fellow.
 
 Tested end to end in `e2e/e2e-heir.mjs` (run after `e2e-call.mjs` on the same server) and in `web/test/integration/inheritance_test.rb`.
 

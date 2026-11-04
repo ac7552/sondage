@@ -236,8 +236,12 @@ function renderRecovery(st) {
   });
   rows.push(st.sondage.released ? row("done", "✓", "Sondage", "Checked it's you") : row("", "…", "Sondage", "Will call you to check it's you"));
   $("#restore-list").innerHTML = rows.join("");
-  const n = Math.min(st.pieces, 2);
-  $("#restore-lede").textContent = n === 0 ? "We sent the emails. Waiting for 2 people to click the button." : "1 person has clicked. Waiting for 1 more.";
+  // Sondage's copy is always needed, plus one person's. Nothing arrives before Sondage calls.
+  const clicked = st.contacts.filter((c) => c.approved).length;
+  const people = clicked === 1 ? "1 person has clicked." : `${clicked} people have clicked.`;
+  $("#restore-lede").textContent = st.sondage.released
+    ? clicked === 0 ? "Sondage has checked it's you. Waiting for one person to click the button." : "Almost there…"
+    : clicked === 0 ? "We sent the emails. Waiting for someone to click the button, and for Sondage to call you." : `${people} Sondage will call you to check it's really you, then your recordings come back.`;
 }
 
 async function watchRecovery(st) {
@@ -552,6 +556,9 @@ async function joinRoom(iv) {
       state.room?.waiters.signature?.reject(new Error(`${iv.historian.name}'s screen couldn't read the summary: ${m.reason}`));
       return false;
     } }), channel: null, waiters: {}, rings: [],
+    // Every chunk of the Fellow's own recording, as it was stored. Sent to the
+    // historian live, so their co-signature covers the Fellow's side too.
+    witnessed: [],
   });
   $("#stage").classList.toggle("audio-only", !video);
   $("#remote-name").textContent = iv.historian.name;
@@ -599,6 +606,9 @@ async function joinRoom(iv) {
     onChannel: (dc) => {
       room.channel = dc;
       wire(dc, { sender: room.sender, receiver: room.receiver });
+      // A fresh connection gets every witness message again; the historian ignores repeats
+      // and refuses to sign if any of them changed.
+      for (const w of room.witnessed) sendControl(dc, w);
       setStatus(room.recording ? `You are talking with ${room.iv.historian.name}.` : `You are talking with ${room.iv.historian.name}. They will start the recording.`);
       sendControl(dc, { t: "fellow-state", recording: room.recording });
       if (room.recording) sendControl(dc, { t: "recording", on: true, nextSegment: room.segments + 1 });
@@ -652,7 +662,9 @@ async function startRecording(by) {
   const track = room.stream.getAudioTracks()[0];
   room.audioRec = new RawAudioRecorder(room.stream, {
     onChunk: async (c) => {
-      await S.rec.chunk({ sessionId: room.sessionId, trackId: room.audioId, index: c.index, bytes: c.bytes, sampleStart: c.sampleStart, sampleCount: c.sampleCount });
+      const trackId = room.audioId;
+      const entry = await S.rec.chunk({ sessionId: room.sessionId, trackId, index: c.index, bytes: c.bytes, sampleStart: c.sampleStart, sampleCount: c.sampleCount });
+      witness(trackId, entry);
       $("#saved-line").hidden = false;
     },
   });
@@ -662,13 +674,16 @@ async function startRecording(by) {
     id: room.audioId, kind: "audio", role: "fellow",
     info: { sampleRate: room.audioRec.sampleRate, device: { label: d.label }, processing: { echoCancellation: d.echoCancellation, noiseSuppression: d.noiseSuppression, autoGainControl: d.autoGainControl, voiceIsolation: d.voiceIsolation, deviceSampleRate: d.sampleRate, captureSampleRate: room.audioRec.sampleRate } },
   });
+  announceOwnTrack(room.audioId, "audio");
   if (room.video) {
     room.videoRec = new LocalVideoRecorder(room.stream, {
       onChunk: async (c) => {
-        await S.rec.chunk({ sessionId: room.sessionId, trackId: room.videoId, index: c.index, bytes: c.bytes });
+        const trackId = room.videoId;
+        witness(trackId, await S.rec.chunk({ sessionId: room.sessionId, trackId, index: c.index, bytes: c.bytes }));
       },
     });
     await S.rec.track(room.sessionId, { id: room.videoId, kind: "video", role: "fellow", info: { mimeType: room.videoRec.mimeType } });
+    announceOwnTrack(room.videoId, "video");
     room.videoRec.start();
   }
   await S.rec.log(room.sessionId, by, "recording-started");
@@ -685,6 +700,24 @@ async function startRecording(by) {
   window.onbeforeunload = () => "Your interview is still recording.";
 }
 $("#start-rec").addEventListener("click", () => startRecording("fellow"));
+
+// Live witnessing. The historian's page keeps these and checks the Fellow's tracks in
+// the manifest against them before co-signing, so the Fellow's side of the recording
+// is attested by someone other than the Fellow's own computer.
+function announceOwnTrack(id, kind) {
+  const room = state.room;
+  if (!room) return;
+  const msg = { t: "fellow-track", id, kind };
+  room.witnessed.push(msg);
+  sendControl(room.channel, msg);
+}
+function witness(trackId, entry) {
+  const room = state.room;
+  if (!room || !entry) return;
+  const msg = { t: "witness", track: trackId, index: entry.index, sha256: entry.sha256, chain: entry.chain };
+  room.witnessed.push(msg);
+  sendControl(room.channel, msg); // if the call is down, it goes out again on reconnect
+}
 
 $("#leave-room").addEventListener("click", async () => {
   const room = state.room;
@@ -889,6 +922,7 @@ async function loadVault() {
         <div class="actions">
           <button class="primary" data-listen="${i}" ${r.present ? "" : "disabled"}>Listen</button>
           <button data-verify="${i}" ${r.present ? "" : "disabled"}>Check it is safe</button>
+          <button data-certificate="${i}">Print a certificate</button>
         </div>
         <p class="check-result" hidden></p>
       </article>`).join("")
@@ -917,6 +951,8 @@ document.addEventListener("click", async (e) => {
   }
   const l = e.target.closest("[data-listen]");
   if (l) openListen(state.capsules[+l.dataset.listen]);
+  const c = e.target.closest("[data-certificate]");
+  if (c) S.vault.certificate(state.capsules[+c.dataset.certificate].receiptPath).catch(() => alert("We couldn't make the certificate. Please call your Sondage helper."));
 });
 
 // ---------------------------------------------------------------- listening

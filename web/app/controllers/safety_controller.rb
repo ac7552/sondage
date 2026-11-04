@@ -3,6 +3,8 @@
 # the page proves which piece it holds with a fingerprint, and on approval encrypts
 # the piece to the Fellow's new computer before sending it.
 class SafetyController < ApplicationController
+  include StrictPagePolicy
+  strict_page_policy only: :show
   skip_before_action :authenticate_user!
   skip_forgery_protection only: %i[lookup approve deny report_death] # JSON only, no cookies involved
   rate_limit to: 30, within: 10.minutes, only: %i[lookup approve deny report_death], with: -> { render json: { error: "Too many tries. Please wait a few minutes." }, status: :too_many_requests }
@@ -29,6 +31,10 @@ class SafetyController < ApplicationController
   def approve
     r = pending_recovery
     return render(json: { error: "There's no request to approve right now." }, status: :not_found) unless r && r.id == params[:recovery_id].to_i
+    # After a death only the heir's own piece is used; other helpers can still stop it.
+    if r.inheritance? && r.inheritance_claim.safety_contact_id != @contact.id
+      return render(json: { error: "Only #{r.inheritance_claim.safety_contact.name} needs to confirm this." }, status: :forbidden)
+    end
     begin
       r.approvals.find_or_create_by!(safety_contact: @contact) { |a| a.encrypted_piece = params.require(:encrypted_piece) }
     rescue ActiveRecord::RecordNotUnique

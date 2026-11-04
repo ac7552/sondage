@@ -72,13 +72,10 @@ async function start() {
     return show(mine ? `Open ${esc(first)}'s recordings on your computer?` : `Help ${esc(r.inheritance.heir.split(" ")[0])} open ${esc(first)}'s recordings?`,
       mine
         ? `<p>On <strong>${esc(when)}</strong>, the Sondage app asked to open ${esc(fellow)}'s recordings on your computer.</p><p>If that was you, confirm below.</p>`
-        : `<p>${esc(first)} chose ${esc(r.inheritance.heir)} to receive their recordings. ${esc(r.inheritance.heir.split(" ")[0])} asked on <strong>${esc(when)}</strong> to open them.</p><p>Sondage has confirmed ${esc(first)}'s death. If you're not sure about this request, call ${esc(r.inheritance.heir.split(" ")[0])} first.</p>`,
-      {
-        yes: mine ? "Yes, this was me" : "Yes, help them",
-        no: mine ? "No, I didn't ask" : "No, stop this",
-        onYes: () => approve(piece_sha256, r, mine, first),
-        onNo: () => deny(piece_sha256, r, mine, first),
-      });
+        : `<p>${esc(first)} chose ${esc(r.inheritance.heir)} to receive their recordings. ${esc(r.inheritance.heir.split(" ")[0])} asked on <strong>${esc(when)}</strong> to open them.</p><p>Sondage has confirmed ${esc(first)}'s death, and will call ${esc(r.inheritance.heir.split(" ")[0])} before anything opens. There's nothing you need to do. If something about this seems wrong, you can stop it.</p>`,
+      mine
+        ? { yes: "Yes, this was me", no: "No, I didn't ask", onYes: () => approve(piece_sha256, r, mine, first), onNo: () => deny(piece_sha256, r, mine, first) }
+        : { yes: "That's fine", no: "No, stop this", onYes: () => show("Thank you", "<p>There's nothing else to do.</p>"), onNo: () => deny(piece_sha256, r, mine, first) });
   }
 
   if (!r) {
@@ -88,14 +85,14 @@ async function start() {
         : `<p>This is your part of ${esc(fellow)}'s safety key. There's nothing to do now. Keep the email: if ${esc(first)} ever loses access to their recordings, Sondage will email you and you'll click the same button.</p>`);
   }
   if (r.already_approved) {
-    return show("You've already helped", `<p>Thank you. ${self ? "Your recordings open" : `${esc(first)}'s recordings open`} again as soon as two safety copies are in.</p>`);
+    return show("You've already helped", `<p>Thank you. ${self ? "Your recordings open" : `${esc(first)}'s recordings open`} again once Sondage has called ${self ? "you" : esc(first)} to check, and released its own copy.</p>`);
   }
 
   const when = new Date(r.requested_at).toLocaleString(undefined, { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
   show(self ? "Did you ask to get your recordings back?" : `Help ${esc(first)} get their recordings back?`,
     self
       ? `<p>A request was made on <strong>${esc(when)}</strong> to open your recordings on a new computer.</p><p>If that was you, confirm below.</p>`
-      : `<p>${esc(fellow)} asked on <strong>${esc(when)}</strong> to open their recordings on a new computer.</p><p><strong>Is this really ${esc(first)}?</strong> If you're not sure, call ${esc(first)} before you answer.</p>`,
+      : `<p>${esc(fellow)} asked on <strong>${esc(when)}</strong> to open their recordings on a new computer.</p><p><strong>Is this really ${esc(first)}?</strong> Please call ${esc(first)} on a number you already have before you answer. Don't use a number from an email or message.</p><p>Sondage will also call ${esc(first)} and wait a few days before anything opens.</p>`,
     {
       yes: self ? "Yes, this was me" : `Yes, help ${first}`,
       no: self ? "No, I didn't ask" : `No, this wasn't ${first}`,
@@ -125,7 +122,7 @@ async function approve(piece_sha256, r, self, first) {
     const sealed = await e.encrypt(hex);
     const encrypted_piece = btoa(String.fromCharCode(...sealed));
     await post("/safety/approve", { piece_sha256, recovery_id: r.id, encrypted_piece });
-    show("Thank you", `<p>${self ? "Your recordings" : `${esc(first)}'s recordings`} open again as soon as one more safety copy comes in. There's nothing else to do.</p>`);
+    show("Thank you", `<p>${self ? "Your recordings" : `${esc(first)}'s recordings`} open again once Sondage has called ${self ? "you" : esc(first)} to check, and released its own copy. There's nothing else to do.</p>`);
   } catch (err) {
     show("That didn't work", `<p>${esc(err.message)}</p>`);
   }

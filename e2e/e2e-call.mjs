@@ -19,6 +19,7 @@ const mailLog = path.join(OUT, "mail.log");
 for (const p of [vault, mailLog, path.join(OUT, "fellow-userdata"), path.join(OUT, "fellow-userdata-2")]) fs.rmSync(p, { recursive: true, force: true });
 const shot = (page, name) => page.screenshot({ path: path.join(OUT, `call-${name}.png`) });
 const step = (m) => console.log(`[${new Date().toISOString().slice(11, 19)}] ${m}`);
+const fail = (m) => { throw new Error(m); };
 
 async function launchFellow(userDir) {
   const app = await electron.launch({
@@ -95,6 +96,11 @@ hist.on("dialog", (d) => d.accept());
 await hist.goto("http://localhost:3999/room");
 await hist.waitForFunction(() => document.getElementById("key-status").textContent.startsWith("Your signing key"), null, { timeout: 15000 });
 await hist.check("#headphones");
+for (const box of await hist.$$("[data-check]:not(#test-heard)")) await box.check();
+await hist.click("#test-clip");
+await hist.waitForFunction(() => !document.getElementById("test-heard").disabled, null, { timeout: 15000 });
+await hist.check("#test-heard");
+step("historian ran the room checklist and a test clip");
 await hist.waitForFunction(() => !document.getElementById("join").disabled, null, { timeout: 10000 });
 await hist.click("#join");
 step("historian is in the room");
@@ -137,6 +143,10 @@ step("historian: " + (await hist.textContent("#sent")));
 await hist.click("#h-end");
 await hist.waitForSelector("#sign:not([hidden])", { timeout: 60000 });
 await shot(hist, "h2-sign");
+// The historian's page saw the Fellow's own track live, piece by piece, before signing.
+const witnessed = await hist.$eval("#sign-facts", (el) => el.textContent);
+if (!/Witnessed live\s*fellow-audio \(\d+ pieces\)/.test(witnessed)) fail(`the historian didn't witness the Fellow's track: ${witnessed}`);
+step("historian witnessed the Fellow's track live");
 await win.waitForTimeout(500);
 await shot(win, "f11b-waiting-for-signature");
 await hist.click("#sign-yes");

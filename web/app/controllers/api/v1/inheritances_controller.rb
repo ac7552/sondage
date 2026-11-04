@@ -62,8 +62,10 @@ class Api::V1::InheritancesController < Api::V1::BaseController
     {
       id: r.id, status: r.status, release_after: r.release_after.iso8601,
       approved_by_you: r.approvals.exists?(safety_contact_id: @claim.safety_contact_id),
-      pieces: r.pending? ? r.approvals.map { |a| { encrypted_piece: a.encrypted_piece } } : [],
-      sondage: { released: r.sondage_released?, piece: (@claim.fellow.sondage_share if r.sondage_released? && r.pending?) }
+      # Only the heir's own piece, and only once Sondage has released its unlocking half.
+      pieces: r.pieces_releasable? ? r.approvals.where(safety_contact_id: @claim.safety_contact_id).map { |a| { encrypted_piece: a.encrypted_piece } } : [],
+      # An heir gets the unlocking half of Sondage's piece only: enough to open, never to sign.
+      sondage: { released: r.sondage_released?, piece: (SafetyShare.unlocking_half(@claim.fellow.sondage_share) if r.pieces_releasable?) }
     }
   end
 end

@@ -1,5 +1,7 @@
 # Rebuilding a Fellow's key on a new computer. The new computer sends a one-time
-# public key; each approving holder encrypts their piece to it. Two pieces are enough.
+# public key; each approving holder encrypts their piece to it. Sondage's piece plus
+# one helper's are needed, and no piece reaches the new computer before Sondage's is
+# released (after the waiting period and a phone call).
 class Api::V1::RecoveriesController < Api::V1::BaseController
   before_action :require_fellow!
   before_action :set_recovery, only: %i[show complete]
@@ -46,7 +48,7 @@ class Api::V1::RecoveriesController < Api::V1::BaseController
     {
       id: r.id, status: r.status, release_after: r.release_after.iso8601,
       contacts: @fellow.safety_contacts.map { |c| { name: c.name, role: c.role, approved: approved.key?(c.id), blocked: r.blocked_by_id == c.id } },
-      pieces: r.pending? ? approved.values.map { |a| { from: a.safety_contact.name, encrypted_piece: a.encrypted_piece } } : [],
+      pieces: r.pieces_releasable? ? approved.values.map { |a| { from: a.safety_contact.name, encrypted_piece: a.encrypted_piece } } : [],
       sondage: { released: r.sondage_released?, piece: (@fellow.sondage_share if r.sondage_released? && r.pending?) }
     }
   end

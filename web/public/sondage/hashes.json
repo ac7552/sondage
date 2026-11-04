@@ -1,0 +1,14 @@
+{
+  "about": "SHA-384 of each script under /sondage/, as served. Regenerate with node scripts/script-hashes.mjs.",
+  "files": {
+    "call.js": "sha384-JmQQo1DG7fRulqmWGrUsgusqQvErUg67lUhiH/dD/IQHzzQ7QW1vFefXyOoYV/eE",
+    "chain.js": "sha384-83zqGJPk/QQq4cS9lX42U3aKeYLU4pybBQ5FxpfuPZQ2Uf+j5Q7bjAI3r3mmx1GS",
+    "historian.js": "sha384-39glMrybXTt0Gi3qBaL2rI4Uzg9P56FhjwI/DVhWWpnefMDcuQPSxwk0ux6KUTFM",
+    "recorder.js": "sha384-lP0tGjeb8ga6Ohk9m0iSlR4MeNr8seMLayHIlUns3pFcQ+ttZacgtKhhSWr6cxdC",
+    "safety.js": "sha384-3V2IEh9JpxU4cMVB5rtLLhoW2Cse0tp/tB9WpKsvS08cYVxJqzoBiTDUrb7sBjQI",
+    "timeline.js": "sha384-PmcjcfSMG0DV/1pGyjDeaeJ0tiSnBMSvEVM2dl5MAjXIPxNBrKflcCE0QR1tk7yh",
+    "transfer.js": "sha384-xM+w+e/G8hl9Mf1Yt1zEViJmR+OB5yiLgEv3IFCUUSdnZ5Jl7whpk7oFnrbah+eD",
+    "ui.js": "sha384-rsNHoxy/jKrSVKl5UKNLVFjHQb7uYb/E7W5D7i8Dp5qZkh02BLObjlPIEM59u4SW",
+    "vendor/age.js": "sha384-KzDiV7T1jmvgEcgKU9byEy65j57zAIy11JNCTOq0A5ZlW1uxJxvHfNw48PYSbn2o"
+  }
+}

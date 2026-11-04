@@ -25,6 +25,13 @@
           <div class="field" id="cam-field" hidden><label for="cam">Camera</label><select id="cam"></select></div>
           <div class="meter"><div id="meter"></div></div>
           <label class="choices"><span><input type="checkbox" id="headphones"> I'm wearing headphones</span></label>
+          <div class="stack" id="room-checklist">
+            <p class="small"><strong>Most bad recordings come from the room, not the computer.</strong></p>
+            <label class="choices"><span><input type="checkbox" data-check> The room is quiet: door closed, no fan, TV or music</span></label>
+            <label class="choices"><span><input type="checkbox" data-check> My phone is silent and notifications on this computer are off</span></label>
+            <div class="actions"><button type="button" id="test-clip">Record a 5-second test</button><audio id="test-audio" controls hidden></audio></div>
+            <label class="choices"><span><input type="checkbox" data-check id="test-heard" disabled> I listened to the test and it sounds clear</span></label>
+          </div>
           <video id="preview" autoplay muted playsinline hidden></video>
         </div>
         <div>

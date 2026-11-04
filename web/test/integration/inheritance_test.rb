@@ -5,11 +5,13 @@ class InheritanceTest < ActionDispatch::IntegrationTest
   include ActionMailer::TestHelper
 
   RECIPIENT = "age1" + "q" * 58
+  # Sondage's copy: unlocking half (66 hex) then signing half (66 hex).
+  SONDAGE_SHARE = ("AB" * 33) + ("CD" * 33)
 
   setup do
     build_world
     @fellow_user.update!(signing_public_key: key_b64)
-    @fellow.update!(sondage_share: "SONDAGE-4 ABCD", age_recipient: RECIPIENT)
+    @fellow.update!(sondage_share: SONDAGE_SHARE, age_recipient: RECIPIENT)
     @self_contact = @fellow.safety_contacts.create!(name: "Fellow", email: "f@test", role: "self", piece_sha256: "1" * 64)
     @ana = @fellow.safety_contacts.create!(name: "Ana Ruiz", email: "ana@test", role: "family", piece_sha256: "2" * 64)
     @marco = @fellow.safety_contacts.create!(name: "Marco Ruiz", email: "marco@test", role: "family", piece_sha256: "3" * 64)
@@ -70,6 +72,10 @@ class InheritanceTest < ActionDispatch::IntegrationTest
     assert_response :created
     rid = response.parsed_body["id"]
 
+    # Another helper can stop an heir's request, but their piece isn't used.
+    post "/safety/approve", params: { piece_sha256: @marco.piece_sha256, recovery_id: rid, encrypted_piece: "sealed-to-marco" }, as: :json
+    assert_response :forbidden
+
     # Ana approves from her safety email (the page sees it's her own request).
     post "/safety/lookup", params: { piece_sha256: @ana.piece_sha256 }, as: :json
     assert response.parsed_body.dig("recovery", "inheritance", "mine")
@@ -78,10 +84,12 @@ class InheritanceTest < ActionDispatch::IntegrationTest
 
     get "/api/v1/inheritances/#{claim.id}/recovery/#{rid}", headers: headers
     assert_nil response.parsed_body.dig("sondage", "piece") # not until an admin releases it
+    assert_equal [], response.parsed_body["pieces"] # nor the heir's own, encrypted to their computer
 
     patch release_recovery_path(rid)
     get "/api/v1/inheritances/#{claim.id}/recovery/#{rid}", headers: headers
-    assert_equal "SONDAGE-4 ABCD", response.parsed_body.dig("sondage", "piece")
+    # Only the unlocking half: enough to open the recordings, never to sign as the Fellow.
+    assert_equal "AB" * 33, response.parsed_body.dig("sondage", "piece")
     assert_equal [ "sealed-to-ana" ], response.parsed_body["pieces"].map { |p| p["encrypted_piece"] }
 
     post "/api/v1/inheritances/#{claim.id}/recovery/#{rid}/complete", headers: headers, as: :json

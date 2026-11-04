@@ -150,7 +150,8 @@ export class RecordingSession {
   // ------------------------------------------------------------ manifest
 
   // context: { capsuleId, session:{...}, fellow:{name, signingPublicKey, ageRecipient},
-  //            historian:{name, signingPublicKey}, timeline (object|null), software:{...} }
+  //            historian:{name, signingPublicKey}, timeline (object|null), software:{...},
+  //            timestampAuthority (url|null) }
   async buildManifest(context) {
     const content = this.contentDir;
     await fsp.rm(this.objectDir, { recursive: true, force: true });
@@ -259,6 +260,13 @@ export class RecordingSession {
         algorithm: "SHA-256",
         chain: "genesis = SHA-256('sondage-capsule:' + sessionId + ':' + trackId); link[i] = SHA-256(link[i-1] + chunkSha256[i]) over lowercase hex strings",
       },
+      // Signed by both people, so a later reader knows a seal record must exist and
+      // whether a trusted timestamp was asked for. Removing either is then detectable.
+      sealing: {
+        record: "seal.json",
+        timestampRequested: !!context.timestampAuthority,
+        timestampAuthority: context.timestampAuthority || null,
+      },
     };
     const manifestText = JSON.stringify(manifest, null, 2) + "\n";
     await fsp.writeFile(path.join(content, "manifest.json"), manifestText);
@@ -287,6 +295,41 @@ export class RecordingSession {
       throw new Error("This computer's key is not the Fellow key named in the manifest");
     }
     const fellowSignature = keys.sign(opts.fellowKeys, manifestBytes);
+    const tsaUrl = opts.tsaUrl === undefined ? manifest.sealing?.timestampAuthority || null : opts.tsaUrl;
+
+    let timestamp = { status: "not-requested" };
+    if (tsaUrl) {
+      try {
+        const ts = await requestTimestamp(manifestSha256, tsaUrl);
+        await fsp.writeFile(path.join(content, "timestamp.tsr"), ts.tsr);
+        timestamp = { status: "granted", url: ts.url, genTime: ts.genTime, file: "timestamp.tsr" };
+      } catch (err) {
+        timestamp = { status: "unavailable", url: tsaUrl, error: String(err.message || err) };
+      }
+    }
+
+    // The seal record says what happened at sealing, timestamp included, and the Fellow
+    // signs it. Stripping timestamp.tsr afterwards no longer looks like "never asked for".
+    let sealSignature = null;
+    if (manifest.sealing) {
+      const record = {
+        format: FORMAT,
+        kind: "sondage-seal",
+        capsuleId: manifest.capsuleId,
+        manifestSha256,
+        sealedAt: new Date().toISOString(),
+        timestamp: {
+          status: timestamp.status,
+          authority: timestamp.url || null,
+          genTime: timestamp.genTime || null,
+          tsrSha256: timestamp.status === "granted" ? await fileDigest(path.join(content, "timestamp.tsr")) : null,
+        },
+      };
+      const recordBytes = Buffer.from(JSON.stringify(record, null, 2) + "\n");
+      await fsp.writeFile(path.join(content, manifest.sealing.record), recordBytes);
+      sealSignature = { file: manifest.sealing.record, sha256: sha256(recordBytes), role: "fellow", publicKey: opts.fellowKeys.signingPublicKey, signature: keys.sign(opts.fellowKeys, recordBytes) };
+    }
+
     const signatures = {
       format: FORMAT,
       signedFile: "manifest.json",
@@ -296,19 +339,9 @@ export class RecordingSession {
         { role: "historian", name: manifest.participants.historian.name, publicKey: opts.historianPublicKey, signature: opts.historianSignature },
         { role: "fellow", name: manifest.participants.fellow.name, publicKey: opts.fellowKeys.signingPublicKey, signature: fellowSignature, signedAt: new Date().toISOString() },
       ],
+      ...(sealSignature ? { seal: sealSignature } : {}),
     };
     await fsp.writeFile(path.join(content, "signatures.json"), JSON.stringify(signatures, null, 2) + "\n");
-
-    let timestamp = { status: "not-requested" };
-    if (opts.tsaUrl) {
-      try {
-        const ts = await requestTimestamp(manifestSha256, opts.tsaUrl);
-        await fsp.writeFile(path.join(content, "timestamp.tsr"), ts.tsr);
-        timestamp = { status: "granted", url: ts.url, genTime: ts.genTime, file: "timestamp.tsr" };
-      } catch (err) {
-        timestamp = { status: "unavailable", url: opts.tsaUrl, error: String(err.message || err) };
-      }
-    }
 
     await writeOcflInventory(this.objectDir, manifest.capsuleId, {
       created: new Date().toISOString(),
@@ -408,22 +441,35 @@ in open formats, and none of it depends on Sondage still existing.
                               chain of every recorded chunk
   v1/content/signatures.json  Ed25519 signatures of manifest.json by the Fellow
                               and the historian
+  v1/content/seal.json        what happened at sealing (including whether a
+                              timestamp was granted), signed by the Fellow
   v1/content/timestamp.tsr    RFC 3161 timestamp of manifest.json (if granted)
   v1/content/audio/*.wav      the uncompressed recordings, one per person
   v1/content/gip/             the Generative Information Package (AI material,
                               kept apart; empty for this capsule)
 
 To check it:
+  0. Find the Fellow's and historian's key fingerprints somewhere OUTSIDE this
+     capsule: the printed Sondage certificate, the receipt, or Sondage's records.
+     The keys inside manifest.json only prove that whoever holds those keys
+     signed it. Anyone can make keys; the outside record says whose they are.
+     A fingerprint is the first 16 hex characters of SHA-256 of the raw 32-byte
+     public key, upper case, in groups of four.
   1. Compute SHA-256 of each file listed in manifest.json and compare.
   2. For each track, recompute each chunk's SHA-256 from its byte range in the
      file, then rebuild the chain as described under "hashing" in manifest.json.
      The last link must equal "finalChain".
   3. Verify both signatures in signatures.json against the exact bytes of
-     manifest.json, using the public keys listed there.
+     manifest.json, using the public keys listed there, and check those keys
+     match the fingerprints from step 0. If manifest.json has a "sealing"
+     section, verify the Fellow's "seal" signature over the exact bytes of
+     seal.json; if seal.json says a timestamp was granted, timestamp.tsr must
+     be present and its SHA-256 must match.
   4. Verify the timestamp:
        openssl ts -verify -digest <sha256 of manifest.json> -in timestamp.tsr \\
          -CAfile <the timestamp authority's CA certificate>
 
 The Sondage verifier (sondage-verify) performs steps 1 to 3 and a structural
-check of step 4 automatically.
+check of step 4 automatically. Give it the fingerprints from step 0 with
+--fellow-key and --historian-key (or --receipt) so it can do step 0 too.
 `;

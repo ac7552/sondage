@@ -21,6 +21,8 @@ const meeting = { id: 1, title: "Life history interview with Eleanor Ruiz", medi
 const tokens = new Map(); // token -> "fellow" | "heir"
 users.heir = { id: 9, name: "Ana Ruiz", email: "ana@example.com", role: "heir", password: "heir-demo-2026" };
 const claim = { id: 1, status: null, contactSha: null, release_after: null }; // after a Fellow's death
+// Sondage's copy is unlocking half || signing half (66 hex each); see web/app/models/safety_share.rb.
+const unlockingHalf = (hex) => (/^[0-9a-f]{132}$/i.test(hex || "") ? hex.slice(0, 66) : hex);
 const safety = { sondageShare: null, contacts: [], recoveries: [] };
 const sha = (hex) => crypto.createHash("sha256").update(Buffer.from(hex, "hex")).digest("hex");
 export const state = { receipt: null };
@@ -192,7 +194,8 @@ const server = http.createServer(async (req, res) => {
   // ---- recovery (mirrors Api::V1::RecoveriesController)
   const recPayload = (r) => ({ id: r.id, status: r.status, release_after: new Date().toISOString(),
     contacts: safety.contacts.map((c) => ({ name: c.name, role: c.role, approved: r.approvals.some((a) => a.sha === c.piece_sha256), blocked: r.blockedBy === c.piece_sha256 })),
-    pieces: r.approvals.map((a) => ({ from: a.name, encrypted_piece: a.encrypted_piece })),
+    // As in the Rails app: helpers' pieces reach the new computer only once Sondage's is released.
+    pieces: r.released && r.status === "pending" ? r.approvals.map((a) => ({ from: a.name, encrypted_piece: a.encrypted_piece })) : [],
     sondage: { released: r.released, piece: r.released && r.status === "pending" ? safety.sondageShare : null } });
   if (p === "/api/v1/recoveries" && req.method === "POST") {
     const b = await body(req);
@@ -236,7 +239,9 @@ const server = http.createServer(async (req, res) => {
     if (jm2[2]) { r.status = "complete"; claim.status = "complete"; log("heir has the key"); return json(res, 200, { ok: true }); }
     const heirSha = claim.contactSha;
     return json(res, 200, { id: r.id, status: r.status, release_after: claim.release_after, approved_by_you: r.approvals.some((a) => a.sha === heirSha),
-      pieces: r.status === "pending" ? r.approvals.map((a) => ({ encrypted_piece: a.encrypted_piece })) : [], sondage: { released: r.released, piece: r.released && r.status === "pending" ? safety.sondageShare : null } });
+      // As in the Rails app: only the heir's own piece, and only the unlocking half of Sondage's.
+      pieces: r.released && r.status === "pending" ? r.approvals.filter((a) => a.sha === heirSha).map((a) => ({ encrypted_piece: a.encrypted_piece })) : [],
+      sondage: { released: r.released, piece: r.released && r.status === "pending" ? unlockingHalf(safety.sondageShare) : null } });
   }
   if (p === "/test/confirm-death" && req.method === "POST") { claim.status = "confirmed"; claim.release_after = new Date().toISOString(); log("admin confirmed the death"); return json(res, 200, {}); }
 
@@ -258,6 +263,7 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { ok: true });
     }
     if (!r || r.id !== b.recovery_id) return json(res, 404, { error: "There's no request right now." });
+    if (p === "/safety/approve" && r.inheritance && c.piece_sha256 !== claim.contactSha) return json(res, 403, { error: "Only the heir needs to confirm this." });
     if (p === "/safety/approve") { if (!r.approvals.some((a) => a.sha === c.piece_sha256)) r.approvals.push({ sha: c.piece_sha256, name: c.name, encrypted_piece: b.encrypted_piece }); log("approved by", c.name); return json(res, 200, { ok: true }); }
     if (p === "/safety/deny") { r.status = "blocked"; r.blockedBy = c.piece_sha256; log("blocked by", c.name); return json(res, 200, { ok: true }); }
   }
