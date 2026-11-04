@@ -52,19 +52,19 @@ step("home: " + (await win.textContent("#home-card")).replace(/\s+/g, " ").trim(
 
 // ---------------------------------------------------------------- journal
 await win.click("#home-card [data-go='journal']");
-await win.waitForSelector("#view-journal:not([hidden]) .prompt-card");
+await win.waitForSelector("#view-journal:not([hidden]) .sticky");
 await shot(win, "2-journal");
-step(`journal open with ${await win.locator(".prompt-card").count()} questions waiting`);
+step(`journal open with ${await win.locator(".sticky").count()} questions waiting`);
 
-await win.click(".prompt-card [data-answer]");
+await win.click(".sticky [data-answer]");
 await win.waitForSelector("#view-write:not([hidden])");
 if (!(await win.isChecked("#write-share"))) fail("answering the historian's question should default to sharing");
 await win.fill("#write-body", "Arroz con gandules, always, and pernil if Papi had been paid.");
 await win.selectOption("#write-era", { label: /Childhood in Ponce/ }).catch(async () => win.selectOption("#write-era", { index: 1 }));
 await shot(win, "3-answer");
 await win.click("#write-save");
-await win.waitForSelector("#view-journal:not([hidden]) .entry");
-step(`answered a question; questions still waiting: ${await win.locator(".prompt-card").count()}`);
+await win.waitForSelector("#view-journal:not([hidden]) .page-entry");
+step(`answered a question; questions still waiting: ${await win.locator(".sticky").count()}`);
 
 await win.click("#journal-new");
 await win.waitForSelector("#view-write:not([hidden])");
@@ -82,32 +82,32 @@ await shot(win, "5-voice-done");
 await win.click("#write-save");
 await win.waitForSelector("#view-journal:not([hidden]) [data-play]");
 await shot(win, "6-entries");
-const tags = await win.$$eval(".entry .when span", (els) => els.map((e) => e.textContent));
+const tags = await win.$$eval(".page-entry .page-date span", (els) => els.map((e) => e.textContent));
 step("entries: " + tags.join(" | "));
 
-await win.click(".entry [data-play]");
-await win.waitForSelector(".entry audio");
+await win.click(".page-entry [data-play]");
+await win.waitForSelector(".page-entry audio");
 await win.waitForTimeout(1500);
-const played = await win.$eval(".entry audio", (a) => ({ t: a.currentTime, d: a.duration, err: a.error?.code || null }));
+const played = await win.$eval(".page-entry audio", (a) => ({ t: a.currentTime, d: a.duration, err: a.error?.code || null }));
 step(`played the voice note back: ${played.t.toFixed(1)}s played${played.err ? `, error ${played.err}` : ""}`);
 if (played.err) fail("voice note didn't play");
 
 // change the private entry
-await win.click(".entry:first-child [data-edit]");
+await win.click(".page-entry:first-child [data-edit]");
 await win.waitForSelector("#view-write:not([hidden])");
 await win.fill("#write-body", "I found Luis's old bakery apron today. It still smells a little like anise.");
 await win.click("#write-save");
-await win.waitForSelector("#view-journal:not([hidden]) .entry");
+await win.waitForSelector("#view-journal:not([hidden]) .page-entry");
 if (!/anise/.test(await win.textContent("#journal-entries"))) fail("change wasn't saved");
 step("changed an entry");
 
 // set the other question aside, then delete an entry
-await win.click(".prompt-card [data-dismiss]");
-await win.waitForFunction(() => document.querySelectorAll(".prompt-card").length === 0);
+await win.click(".sticky [data-dismiss]");
+await win.waitForFunction(() => document.querySelectorAll(".sticky").length === 0);
 step("set the second question aside");
-const before = await win.locator(".entry").count();
-await win.click(".entry:last-child [data-delete]");
-await win.waitForFunction((n) => document.querySelectorAll(".entry").length === n - 1, before);
+const before = await win.locator(".page-entry").count();
+await win.click(".page-entry:last-child [data-delete]");
+await win.waitForFunction((n) => document.querySelectorAll(".page-entry").length === n - 1, before);
 step(`deleted an entry (${before} → ${before - 1})`);
 await shot(win, "7-after-delete");
 
@@ -138,7 +138,7 @@ await win.click('#nav [data-go="home"]');
 await win.waitForSelector("#view-home:not([hidden]) [data-go='journal']");
 if (await win.$("#home-card [data-go='historians']")) fail("home should stop asking once matched");
 await win.click('#nav [data-go="journal"]');
-await win.waitForSelector("#view-journal:not([hidden]) .entry");
+await win.waitForSelector("#view-journal:not([hidden]) .page-entry");
 await win.click("#journal-new");
 step("share label after the match: " + (await win.textContent("#write-share-label")));
 await win.click("#write-cancel");

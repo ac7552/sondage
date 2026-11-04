@@ -306,29 +306,99 @@ async function loadHome() {
     return;
   }
   $("#home-greeting").textContent = `Hello, ${first(state.me.fellow?.name || state.me.user.name)}.`;
+  $("#home-today").textContent = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+  const f = state.me.fellow || {};
   const next = (state.me.interviews || []).find((iv) => iv.status !== "sealed");
   const done = (state.me.interviews || []).filter((iv) => iv.status === "sealed");
+  const historian = callName(f.historian || next?.historian?.name) || "your historian";
+
+  // The main thing to do now, with a photograph beside it.
+  let feature;
   if (next) {
-    $("#home-card").innerHTML = `
-      <div class="card">
-        <p class="label">Your interview${next.parts > 1 ? `, part ${next.part} of ${next.parts}` : ""}</p>
-        <p class="when">${next.scheduled_at ? `${esc(longDate(next.scheduled_at))} at ${esc(longTime(next.scheduled_at))}` : "Soon"}</p>
-        <p class="with">with ${esc(next.historian?.name || "your interviewer")}. ${next.media_type === "video" ? "You will see and hear each other." : "You will hear each other. No camera."}</p>
-        <button class="primary" data-join="${next.id}">Start my interview</button>
-        ${done.length ? `<p class="small" style="margin-top:16px">${done.length === 1 ? "Part 1 is" : `${done.length} parts are`} saved on this computer. Each part is locked on its own.</p>` : ""}
-      </div>
-      <div class="card"><p class="big">See your life story: your photos, songs and memories, in order.</p><button data-go="story">Open my life story</button></div>`;
+    const d = next.scheduled_at ? new Date(next.scheduled_at) : null;
+    feature = `
+      <section class="feature">
+        <div class="feature-text">
+          ${d ? `<div class="cal" aria-hidden="true"><span class="m">${esc(d.toLocaleDateString(undefined, { month: "short" }))}</span><span class="d">${d.getDate()}</span><span class="w">${esc(d.toLocaleDateString(undefined, { weekday: "short" }))}</span></div>` : ""}
+          <div>
+            <p class="label">Your interview${next.parts > 1 ? `, part ${next.part} of ${next.parts}` : ""}</p>
+            <p class="when">${d ? `${esc(dayWord(d))} at ${esc(longTime(next.scheduled_at))}` : "Soon"}</p>
+            <p class="with">with ${esc(next.historian?.name || "your interviewer")}. ${next.media_type === "video" ? "You will see and hear each other." : "You will hear each other. No camera."}</p>
+            <button class="primary" data-join="${next.id}">Start my interview</button>
+            ${done.length ? `<p class="small saved-note">✓ ${done.length === 1 ? "Part 1 is" : `${done.length} parts are`} saved on this computer.</p>` : ""}
+          </div>
+        </div>
+        <div class="feature-photo" style="background-image: url(photos/microphone.jpg)"></div>
+      </section>`;
   } else if (done.length) {
-    $("#home-card").innerHTML = `<div class="card"><p class="big">${done.length > 1 ? `All ${done.length} parts of your interview are saved.` : "Your interview is saved."}</p><p>If you'd like to record more, Sondage can set up another part.</p><button class="primary" data-go="vault">Listen to my recording${done.length > 1 ? "s" : ""}</button></div>`;
+    feature = `
+      <section class="feature">
+        <div class="feature-text"><div>
+          <p class="label">Your interview</p>
+          <p class="when">${done.length > 1 ? `All ${done.length} parts are saved.` : "It is saved."}</p>
+          <p class="with">Locked so only you can open it. If you'd like to record more, Sondage can set up another part.</p>
+          <button class="primary" data-go="vault">Listen to my recording${done.length > 1 ? "s" : ""}</button>
+        </div></div>
+        <div class="feature-photo" style="background-image: url(photos/microphone.jpg)"></div>
+      </section>`;
+  } else if (!f.historian) {
+    feature = `
+      <section class="feature">
+        <div class="feature-text"><div>
+          <p class="label">First step</p>
+          <p class="when">Choose your historian</p>
+          <p class="with">The person who will talk with you about your life, and record it.</p>
+          <button class="primary" data-go="historians">Choose my historian</button>
+        </div></div>
+        <div class="feature-photo" style="background-image: url(photos/fellow-in-session.jpg)"></div>
+      </section>`;
   } else {
-    $("#home-card").innerHTML = `<div class="card"><p class="big">Your interview is not set up yet. Sondage will call you to pick a day.</p></div>`;
+    feature = `
+      <section class="feature">
+        <div class="feature-text"><div>
+          <p class="label">Your interview</p>
+          <p class="when">Not set up yet</p>
+          <p class="with">${esc(historian)} and Sondage will call you to pick a day.</p>
+        </div></div>
+        <div class="feature-photo" style="background-image: url(photos/microphone.jpg)"></div>
+      </section>`;
   }
-  const f = state.me.fellow || {};
+
+  const prompt = f.next_journal_prompt;
   const waiting = f.journal_prompts_waiting || 0;
-  if (!f.historian) {
-    $("#home-card").insertAdjacentHTML(next ? "beforeend" : "afterbegin", `<div class="card"><p class="label">Your historian</p><p class="big">Choose the person you'd like to talk with about your life.</p><button class="primary" data-go="historians">Choose my historian</button></div>`);
-  }
-  $("#home-card").insertAdjacentHTML("beforeend", `<div class="card"><p class="big">${waiting ? `${esc(callName(f.historian) || "Your historian")} left you ${waiting === 1 ? "a question" : `${waiting} questions`} in your journal.` : "Write down a memory whenever it comes to you."}</p><button ${waiting ? 'class="primary"' : ""} data-go="journal">Open my journal</button></div>`);
+  const tiles = `
+    <div class="home-tiles">
+      <article class="home-tile">
+        <div class="home-tile-photo" style="background-image: url(photos/archive.jpg)"></div>
+        <div class="home-tile-body">
+          <p class="label">My life story</p>
+          <h3>Your photos, songs and memories, in order.</h3>
+          <button data-go="story">Open my life story</button>
+        </div>
+      </article>
+      <article class="home-tile notebook-mini">
+        <div class="home-tile-body">
+          <p class="label">My journal</p>
+          ${prompt
+            ? `<p class="mini-question">“${esc(prompt.text)}”</p><p class="small">${esc(callName(prompt.from))} asked you${waiting > 1 ? `, and ${waiting - 1} more question${waiting > 2 ? "s" : ""}` : ""}.</p>`
+            : `<h3>Write down a memory whenever it comes to you.</h3>`}
+          <button ${prompt ? 'class="primary"' : ""} data-go="journal">Open my journal</button>
+        </div>
+      </article>
+    </div>`;
+  const chooseLater = next && !f.historian
+    ? `<article class="home-strip"><p><strong>Your historian.</strong> Choose the person you'd like to talk with.</p><button data-go="historians">Choose my historian</button></article>` : "";
+  $("#home-card").innerHTML = feature + tiles + chooseLater;
+}
+
+// "Today", "Tomorrow", or the day of the week (for this week), else the date.
+function dayWord(d) {
+  const start = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const days = Math.round((start(d) - start(new Date())) / 864e5);
+  if (days === 0) return "Today";
+  if (days === 1) return "Tomorrow";
+  if (days > 1 && days < 7) return d.toLocaleDateString(undefined, { weekday: "long" });
+  return d.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
 }
 document.addEventListener("click", (e) => {
   const j = e.target.closest("[data-join]");
@@ -981,22 +1051,24 @@ async function loadJournal() {
     return;
   }
   const { prompts, entries } = journal.data;
-  $("#journal-prompts").innerHTML = prompts.map((p) => `
-    <div class="card prompt-card">
-      <p class="label">A question for you</p>
-      <p class="prompt-quote">“${esc(p.text)}”<span class="from">From ${esc(p.from)}</span></p>
+  // Questions from the historian look like notes stuck to the page.
+  $("#journal-prompts").innerHTML = prompts.map((p, i) => `
+    <div class="sticky" style="--tilt: ${i % 2 ? 1.2 : -1.4}deg">
+      <p class="sticky-from">A question from ${esc(callName(p.from))}</p>
+      <p class="sticky-q">${esc(p.text)}</p>
       <div class="buttons"><button class="primary" data-answer="${p.id}">Write about this</button><button class="quiet" data-dismiss="${p.id}">Not now</button></div>
     </div>`).join("");
+  // Each entry is written on the notebook's lines, newest first.
   $("#journal-entries").innerHTML = entries.length
     ? entries.map((e) => `
-      <article class="card entry">
-        <p class="when">${esc(longDate(e.written_on + "T12:00:00"))}${e.era ? ` · ${esc(e.era.title)}` : ""}<span class="${e.shared_with_historian ? "shared" : "private"}">${e.shared_with_historian ? `${esc(callName(journal.data.historian) || "Your historian")} can read this` : "Only you"}</span></p>
-        ${e.prompt ? `<p class="small">Answering: “${esc(e.prompt.text)}”</p>` : ""}
+      <article class="page-entry">
+        <p class="page-date">${esc(longDate(e.written_on + "T12:00:00"))}${e.era ? ` · ${esc(e.era.title)}` : ""}<span class="${e.shared_with_historian ? "shared" : "private"}">${e.shared_with_historian ? `${esc(callName(journal.data.historian) || "Your historian")} can read this` : "Only you"}</span></p>
+        ${e.prompt ? `<p class="page-answering">Answering: “${esc(e.prompt.text)}”</p>` : ""}
         ${e.body ? `<p class="words">${esc(e.body)}</p>` : ""}
         ${e.voice ? `<button data-play="${e.id}">▶ Listen to my voice</button><div data-audio="${e.id}"></div>` : ""}
-        <div class="buttons"><button data-edit="${e.id}">Change</button><button class="quiet" data-delete="${e.id}">Delete</button></div>
+        <div class="buttons page-actions"><button class="quiet" data-edit="${e.id}">Change</button><button class="quiet" data-delete="${e.id}">Delete</button></div>
       </article>`).join("")
-    : `<p class="empty">Nothing here yet. Press "Write something new" to start.</p>`;
+    : `<p class="words empty-page">This notebook is waiting for you. Press "Write something new" to start.</p>`;
 }
 
 $("#view-journal").addEventListener("click", async (ev) => {
@@ -1043,6 +1115,7 @@ function openWrite(entry, prompt) {
   $("#write-prompt").hidden = !journal.prompt;
   $("#write-prompt").innerHTML = journal.prompt ? `“${esc(journal.prompt.text)}”${prompt?.from ? `<span class="from">From ${esc(prompt.from)}</span>` : ""}` : "";
   $("#write-body").value = entry?.body || "";
+  $("#write-date").textContent = longDate((entry?.written_on ? entry.written_on + "T12:00:00" : new Date().toISOString()));
   const eras = journal.data?.eras || [];
   $("#write-era").innerHTML = `<option value="">Not sure, or about today</option>` + eras.map((e) => `<option value="${e.id}">${esc(e.title)} (${e.start_year}–${e.end_year || "now"})</option>`).join("");
   $("#write-era").value = entry?.era?.id || "";

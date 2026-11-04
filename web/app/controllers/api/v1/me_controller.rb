@@ -10,7 +10,9 @@ class Api::V1::MeController < Api::V1::BaseController
         safety_contacts: fellow.safety_contacts.map { |c| { id: c.id, name: c.name, email: c.email, role: c.role, heir: c.heir } },
         pending_recovery_id: fellow.recoveries.pending.first&.id,
         historian: fellow.historian&.name,
-        journal_prompts_waiting: fellow.journal_prompts.waiting.count
+        journal_prompts_waiting: fellow.journal_prompts.waiting.count,
+        next_journal_prompt: fellow.journal_prompts.waiting.includes(:author).first&.then { |p| { text: p.text, from: p.author.name } },
+        journal_entries_count: fellow.journal_entries.count
       },
       interviews: interviews.map { |m|
         {

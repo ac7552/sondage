@@ -114,7 +114,7 @@ const server = http.createServer(async (req, res) => {
       user: { id: 3, name: users.fellow.name, email: users.fellow.email, role: "fellow" },
       fellow: { id: 1, name: users.fellow.name, stage: "interview", signing_public_key: users.fellow.signing_public_key, age_recipient: fellow.age_recipient,
         safety_contacts: safety.contacts.map(({ id, name, email, role, heir }) => ({ id, name, email, role, heir: !!heir })), pending_recovery_id: safety.recoveries.find((r) => r.status === "pending")?.id || null,
-        historian: hist.matched?.name || null, journal_prompts_waiting: waitingPrompts().length },
+        historian: hist.matched?.name || null, journal_prompts_waiting: waitingPrompts().length, next_journal_prompt: waitingPrompts()[0] || null, journal_entries_count: jr.entries.length },
       interviews: [{ ...meeting, part: 1, parts: 1, historian: { name: users.historian.name, signing_public_key: users.historian.signing_public_key }, capsule: null, ...iceFor(3) }],
     });
   }

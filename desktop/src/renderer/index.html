@@ -27,7 +27,7 @@
     <!-- ============ Sign in ============ -->
     <section class="view" id="view-signin" hidden>
       <div class="auth">
-        <figure class="auth-photo" style="background-image: url(photos/family-of-six.jpg)">
+        <figure class="auth-photo" style="background-image: url(photos/microphone.jpg)">
           <figcaption>
             <span class="wordmark">Sondage</span>
             <span class="auth-line">Your life, in your own words.<br>Kept exactly as you said it.</span>
@@ -153,8 +153,8 @@
 
     <!-- ============ Home ============ -->
     <section class="view" id="view-home" hidden>
-      <div class="page">
-        <h1 id="home-greeting">Hello.</h1>
+      <div class="page wide">
+        <header class="home-head"><h1 id="home-greeting">Hello.</h1><p id="home-today"></p></header>
         <div id="home-card"></div>
       </div>
     </section>
@@ -282,13 +282,15 @@
     <!-- ============ My journal ============ -->
     <section class="view" id="view-journal" hidden>
       <div class="page">
-        <div class="photo-band" style="background-image: url(photos/family-couch.jpg)"></div>
-        <h1>My journal</h1>
-        <p class="big">Write down a memory whenever it comes to you, or say it out loud. Only you can read it, unless you choose to share it.</p>
-        <div id="journal-prompts"></div>
-        <div class="buttons"><button class="primary" id="journal-new">Write something new</button></div>
-        <h2>What I have written</h2>
-        <div id="journal-entries"></div>
+        <header class="journal-head">
+          <div>
+            <h1>My journal</h1>
+            <p class="big">Write down a memory whenever it comes to you, or say it out loud. Only you can read it, unless you choose to share it.</p>
+          </div>
+          <button class="primary" id="journal-new">✎ Write something new</button>
+        </header>
+        <div class="stickies" id="journal-prompts"></div>
+        <div class="notebook" id="journal-entries"></div>
       </div>
     </section>
 
@@ -298,10 +300,10 @@
         <p class="stepcount"><button class="quiet" id="write-back">← Back to my journal</button></p>
         <h1 id="write-title">Write something new</h1>
         <p class="prompt-quote" id="write-prompt" hidden></p>
-        <form id="write-form" class="form wide-form">
-          <label>What would you like to say?
-            <textarea name="body" rows="8" id="write-body" placeholder="Start anywhere. A smell, a song, a name…"></textarea>
-          </label>
+        <form id="write-form" class="form notebook write-page">
+          <p class="page-date" id="write-date"></p>
+          <label class="sr">What would you like to say?</label>
+          <textarea name="body" rows="9" id="write-body" class="ruled" placeholder="Start anywhere. A smell, a song, a name…"></textarea>
           <div class="voice-box" id="voice-box">
             <p class="voice-label">Or say it out loud</p>
             <div class="buttons" id="voice-idle"><button type="button" class="record" id="voice-start">● Record my voice</button></div>
@@ -333,7 +335,7 @@
     <!-- ============ For an heir: recordings left to them ============ -->
     <section class="view" id="view-heir" hidden>
       <div class="page">
-        <div class="photo-band" style="background-image: url(photos/family-of-six.jpg)"></div>
+        <div class="photo-band" style="background-image: url(photos/archive.jpg)"></div>
         <h1>Recordings left to you</h1>
         <div id="heir-body"></div>
       </div>
