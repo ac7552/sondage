@@ -1,0 +1,36 @@
+<% page_title "10x10" %>
+<% editable = can_edit_fellow? %>
+<p class="eyebrow">10x10 · <%= @fellow.display_name %></p>
+<h1>Ten lists of ten.</h1>
+<p class="lede">Built together in the 10x10 session. Rank what matters most first. A year turns a memorable event into a point on the timeline.</p>
+
+<nav class="tabs">
+  <% @lists.each do |l| %>
+    <%= link_to fellow_ten_by_ten_path(@fellow, list: l.category), class: ("active" if l == @active) do %><%= l.title.sub(/\A10 /, "") %><span class="count"><%= l.filled_count %>/10</span><% end %>
+  <% end %>
+</nav>
+
+<h2 style="margin-top: 0"><%= @active.title %></h2>
+<p class="muted"><%= @active.prompt %></p>
+<%= form_with url: fellow_ten_by_ten_path(@fellow), method: :patch do |f| %>
+  <%= hidden_field_tag :list_id, @active.id %>
+  <div class="ten-row small muted"><span></span><span>Title</span><span>Year</span><span>In their words</span></div>
+  <% (1..10).each do |rank| %>
+    <% e = @active.entry(rank) %>
+    <div class="ten-row">
+      <span class="rank"><%= rank %></span>
+      <%= text_field_tag "entries[#{rank}][title]", e.title, disabled: !editable, "aria-label": "Number #{rank} title" %>
+      <%= number_field_tag "entries[#{rank}][year]", e.year, in: 1890..Date.current.year, disabled: !editable, "aria-label": "Year" %>
+      <%= text_area_tag "entries[#{rank}][note]", e.note, rows: 1, disabled: !editable, "aria-label": "Note" %>
+    </div>
+  <% end %>
+  <% if editable %><div class="actions"><%= f.submit "Save this list", class: "primary" %></div><% end %>
+<% end %>
+
+<% if editable %>
+  <article class="card" style="margin-top: 40px">
+    <h3>Session finished?</h3>
+    <p>Completing the 10x10 adds each memorable event that has a year to the timeline, then saves a new version of it.</p>
+    <%= button_to "Complete the 10x10", complete_fellow_ten_by_ten_path(@fellow), class: "primary", form: { data: { confirm: "Add the memorable events to the timeline and save a new version?" } } %>
+  </article>
+<% end %>

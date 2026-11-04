@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http: https:; media-src 'self' blob: mediastream: sondage-media:; connect-src 'self' ws: wss: http: https:;" />
+  <title>Sondage</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="timeline.css" />
+</head>
+<body>
+  <header class="masthead">
+    <div class="brand"><span class="wordmark">Sondage</span></div>
+    <nav id="nav" hidden>
+      <button data-go="home" class="navlink">Home</button>
+      <button data-go="story" class="navlink">My life story</button>
+      <button data-go="vault" class="navlink">My recordings</button>
+      <button data-go="settings" class="navlink">Help</button>
+    </nav>
+  </header>
+
+  <main id="app">
+
+    <!-- ============ Sign in ============ -->
+    <section class="view" id="view-signin" hidden>
+      <div class="page">
+        <h1>Welcome to Sondage</h1>
+        <p class="big">Type your email and your password.</p>
+        <form id="signin-form" class="form">
+          <label>Your email<input name="email" type="email" autocomplete="username" required /></label>
+          <label>Your password<input name="password" type="password" autocomplete="current-password" required /></label>
+          <p class="problem" id="signin-error" hidden></p>
+          <button class="primary" type="submit">Sign in</button>
+        </form>
+        <p class="small">Forgot your password? Go to the Sondage website and click <em>Forgot your password?</em></p>
+        <details class="helpers-only"><summary>For helpers: server address</summary>
+          <label>Sondage web address<input id="server-url" form="signin-form" name="serverUrl" type="url" /></label>
+        </details>
+      </div>
+    </section>
+
+    <!-- ============ Setup: keep recordings safe (one step per screen) ============ -->
+    <section class="view" id="view-setup" hidden>
+      <div class="page">
+        <p class="stepcount" id="setup-count"></p>
+
+        <div class="step" data-step="intro">
+          <h1>Let's keep your recordings safe</h1>
+          <p class="big">Your recordings will be locked. Only you can open them.</p>
+          <p class="big">In case you ever need help, we will ask <strong>2 people you trust</strong> to help you.</p>
+          <p class="big">This takes about 5 minutes.</p>
+          <button class="primary" data-next>Start</button>
+        </div>
+
+        <div class="step" data-step="you">
+          <h1>Is this your email?</h1>
+          <p class="huge" id="you-email"></p>
+          <div class="buttons">
+            <button class="primary" data-next>Yes, that's my email</button>
+            <button id="you-change">No, change it</button>
+          </div>
+          <label id="you-edit" hidden>Your email<input id="you-email-input" type="email" /></label>
+        </div>
+
+        <div class="step" data-step="helper1">
+          <h1>Who is someone you trust?</h1>
+          <p class="big">For example, a son, a daughter, a grandchild or a close friend.</p>
+          <form class="form" data-helper="1">
+            <label>Their name<input name="name" required autocomplete="off" /></label>
+            <label>Their email<input name="email" type="email" required autocomplete="off" /></label>
+            <p class="problem" hidden></p>
+            <button class="primary" type="submit">Next</button>
+          </form>
+        </div>
+
+        <div class="step" data-step="helper2">
+          <h1>Who is <em>another</em> person you trust?</h1>
+          <p class="big">Pick someone different from <span class="helper1-name"></span>.</p>
+          <form class="form" data-helper="2">
+            <label>Their name<input name="name" required autocomplete="off" /></label>
+            <label>Their email<input name="email" type="email" required autocomplete="off" /></label>
+            <p class="problem" hidden></p>
+            <button class="primary" type="submit">Next</button>
+          </form>
+        </div>
+
+        <div class="step" data-step="send">
+          <h1 id="send-title"></h1>
+          <ol class="howto">
+            <li>Click the big button below.</li>
+            <li>An email will open. It is already written for you.</li>
+            <li>Click <strong>Send</strong> in that email.</li>
+            <li>Come back here.</li>
+          </ol>
+          <button class="primary" id="send-open"></button>
+          <div id="send-check" hidden>
+            <p class="big">Did you click Send?</p>
+            <div class="buttons">
+              <button class="primary" id="send-yes">Yes, I sent it</button>
+              <button id="send-again">Open the email again</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="step" data-step="done">
+          <h1>All done!</h1>
+          <p class="big">Your recordings will be safe. <span id="done-names"></span> can help you if you ever need it.</p>
+          <p class="big">You don't need to remember anything.</p>
+          <button class="primary" id="setup-finish">Go to my home page</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ New computer: get recordings back ============ -->
+    <section class="view" id="view-restore" hidden>
+      <div class="page">
+        <h1>Welcome back</h1>
+        <div id="restore-start">
+          <p class="big">This computer needs your OK before it can open your recordings.</p>
+          <p class="big">We will send an email to you and your helpers. When <strong>2 of you</strong> click the button in the email, you are all set.</p>
+          <button class="primary" id="restore-ask">Send the emails</button>
+        </div>
+        <div id="restore-progress" hidden>
+          <p class="big" id="restore-lede">We sent the emails. Waiting for 2 people to click the button.</p>
+          <ul class="people" id="restore-list"></ul>
+          <p class="small" id="restore-note">You can leave this open. It will change by itself.</p>
+          <p class="problem" id="restore-error" hidden></p>
+        </div>
+        <details class="helpers-only">
+          <summary>For helpers: type in two safety copies</summary>
+          <form id="restore-form" class="form">
+            <label>First safety link or code<input name="s1" spellcheck="false" /></label>
+            <label>Second safety link or code<input name="s2" spellcheck="false" /></label>
+            <p class="problem" id="manual-error" hidden></p>
+            <button type="submit">Open my recordings</button>
+          </form>
+        </details>
+      </div>
+    </section>
+
+    <!-- ============ Home ============ -->
+    <section class="view" id="view-home" hidden>
+      <div class="page">
+        <h1 id="home-greeting">Hello.</h1>
+        <div id="home-card"></div>
+      </div>
+    </section>
+
+    <!-- ============ Before the interview: headphones and microphone ============ -->
+    <section class="view" id="view-check" hidden>
+      <div class="page">
+        <p class="stepcount" id="check-count"></p>
+        <div class="step" data-check="headphones">
+          <h1>Put on your headphones</h1>
+          <div class="picture" aria-hidden="true">
+            <svg viewBox="0 0 120 100" width="180"><path d="M20 62 V52 a40 40 0 0 1 80 0 V62" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round"/><rect x="10" y="58" width="22" height="34" rx="8" fill="currentColor"/><rect x="88" y="58" width="22" height="34" rx="8" fill="currentColor"/></svg>
+          </div>
+          <p class="big">Headphones stop your voice from echoing.</p>
+          <button class="primary" data-check-next>I have my headphones on</button>
+        </div>
+        <div class="step" data-check="mic">
+          <h1>Say hello</h1>
+          <p class="big">Say "hello, hello" out loud.</p>
+          <div class="meter big-meter"><div id="meter-fill"></div></div>
+          <video id="cam-preview" autoplay muted playsinline hidden></video>
+          <p class="big" id="mic-question">Do you see the green bar move?</p>
+          <div class="buttons">
+            <button class="primary" id="mic-yes">Yes, it moves</button>
+            <button id="mic-no">No, it doesn't</button>
+          </div>
+          <div id="mic-help" hidden class="helpbox">
+            <p class="big">Let's fix it:</p>
+            <ol class="howto">
+              <li>Check that your headphones are plugged in.</li>
+              <li>Try a different microphone here:</li>
+            </ol>
+            <label>Microphone<select id="mic-select"></select></label>
+            <label id="cam-label" hidden>Camera<select id="cam-select"></select></label>
+            <p class="small">Still stuck? Call your Sondage helper.</p>
+          </div>
+          <div id="processing-warning" hidden class="helpbox warn"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ The interview ============ -->
+    <section class="view" id="view-room" hidden>
+      <div class="room">
+        <div class="stage" id="stage">
+          <figure class="tile remote"><video id="remote-video" autoplay playsinline></video>
+            <div class="voice-card"><div class="ring" id="remote-ring"></div><span class="initials" id="remote-initials"></span></div>
+            <figcaption id="remote-name"></figcaption></figure>
+          <figure class="tile local"><video id="local-video" autoplay muted playsinline></video>
+            <div class="voice-card small-card"><div class="ring" id="local-ring"></div><span class="initials" id="local-initials"></span></div>
+            <figcaption>You</figcaption></figure>
+        </div>
+        <aside class="console">
+          <div class="rec-banner" id="rec-banner">Not recording yet</div>
+          <p class="big" id="room-status">Waiting for your interviewer…</p>
+          <p class="timer" id="timer" hidden>0:00</p>
+          <p class="saved" id="saved-line" hidden>Saved safely on this computer ✓</p>
+          <div class="console-foot">
+            <button class="danger" id="end-rec" hidden>Stop and save</button>
+            <button class="record" id="start-rec" hidden>Start recording</button>
+            <button class="quiet" id="leave-room">Leave</button>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ============ Saving ============ -->
+    <section class="view" id="view-seal" hidden>
+      <div class="page">
+        <h1 id="seal-title">Saving your recording…</h1>
+        <p class="big" id="seal-lede">Please keep this window open. This takes about a minute.</p>
+        <div class="spinner" id="seal-spinner" aria-hidden="true"></div>
+        <p class="problem" id="seal-error" hidden></p>
+        <button class="primary" id="seal-home" hidden data-go="vault">See my recordings</button>
+        <div class="buttons" id="seal-stuck" hidden>
+          <button class="primary" id="seal-retry">Try again</button>
+          <button id="seal-gohome">Go to my home page</button>
+        </div>
+        <details class="helpers-only"><summary>What happened, step by step</summary>
+          <ol class="steps" id="seal-steps"></ol>
+          <div id="seal-result"></div>
+        </details>
+      </div>
+    </section>
+
+    <!-- ============ My life story (the timeline) ============ -->
+    <section class="view" id="view-story" hidden>
+      <div id="story-timeline"></div>
+      <p class="big" id="story-message" hidden></p>
+    </section>
+
+    <!-- ============ My recordings ============ -->
+    <section class="view" id="view-vault" hidden>
+      <div class="page wide">
+        <h1>My recordings</h1>
+        <p class="big">Only you can open these.</p>
+        <div id="capsules"></div>
+        <details class="helpers-only"><summary>For helpers: where they are kept</summary>
+          <p class="small">Folder: <span class="mono" id="vault-path"></span></p>
+          <p class="small">Keep a second copy of this folder on an external drive.</p>
+          <button id="vault-change">Choose a different folder</button>
+        </details>
+      </div>
+    </section>
+
+    <!-- ============ Listening ============ -->
+    <section class="view" id="view-listen" hidden>
+      <div class="page">
+        <p class="stepcount"><button class="quiet" data-go="vault">← Back to my recordings</button></p>
+        <h1 id="listen-title"></h1>
+        <p class="big" id="listen-date"></p>
+        <div class="player">
+          <button class="playbtn" id="play" aria-label="Play">▶</button>
+          <input type="range" id="seek" min="0" max="1000" value="0" aria-label="Position" />
+          <span class="time" id="play-time">0:00</span>
+        </div>
+        <div id="listen-media"></div>
+      </div>
+    </section>
+
+    <!-- ============ Help and settings ============ -->
+    <section class="view" id="view-settings" hidden>
+      <div class="page">
+        <h1>Help</h1>
+        <p class="big">Need help? Call your Sondage helper. They can walk you through anything.</p>
+        <h2>People who can help you get your recordings back</h2>
+        <ul class="people" id="helpers-list"></ul>
+        <button id="resend-safety">Send their emails again</button>
+        <h2>Leaving this computer</h2>
+        <button id="sign-out">Sign out</button>
+        <details class="helpers-only"><summary>Technical details</summary>
+          <dl class="facts" id="settings-facts"></dl>
+        </details>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

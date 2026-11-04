@@ -1,0 +1,27 @@
+{
+  "name": "sondage-desktop",
+  "productName": "Sondage",
+  "version": "0.1.0",
+  "description": "Sondage desktop app for the Senior Fellow: raw local recording, sealing and the sovereign vault.",
+  "type": "module",
+  "main": "src/main/main.js",
+  "bin": {
+    "sondage-verify": "bin/sondage-verify.js"
+  },
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/*.test.js",
+    "verify": "node bin/sondage-verify.js"
+  },
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "@rails/actioncable": "^8.1.400",
+    "age-encryption": "^0.3.1",
+    "shamir-secret-sharing": "^0.0.4",
+    "tar": "^7.5.22"
+  },
+  "devDependencies": {
+    "electron": "^45.2.2"
+  }
+}

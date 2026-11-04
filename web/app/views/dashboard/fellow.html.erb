@@ -1,0 +1,51 @@
+<% page_title "Welcome" %>
+<h1>Hello, <%= @fellow.display_name.split.first %>.</h1>
+<p class="lede">This is where we gather the story of your life, in your own words.</p>
+<ol class="stages"><%= fellow_stage_steps(@fellow) %></ol>
+
+<div class="split">
+  <div>
+    <% if @fellow.stage == "intake" %>
+      <article class="card">
+        <p class="eyebrow">What to do next</p>
+        <h3>Answer some questions about your life</h3>
+        <p>Where you were born, where you lived, the work you did. Answer what you can. It's fine to guess, and you can come back later.</p>
+        <%= link_to "Answer the questions", fellow_intake_path(@fellow), class: "button primary" %>
+      </article>
+    <% elsif @fellow.stage == "ten_by_ten" %>
+      <article class="card">
+        <p class="eyebrow">What to do next</p>
+        <h3>Your 10x10 talk</h3>
+        <p>Someone from Sondage will talk with you and help you make 10 short lists: things you remember most, photos, places, people, songs and more.</p>
+        <p>You can start the lists now if you like.</p>
+        <%= link_to "Open my lists", fellow_ten_by_ten_path(@fellow), class: "button primary" %>
+      </article>
+    <% else %>
+      <article class="card">
+        <p class="eyebrow">Your life story</p>
+        <h3>Add photos, songs and stories</h3>
+        <p>Scroll through your life and add anything that belongs in it.</p>
+        <%= link_to "Open my life story", fellow_timeline_path(@fellow), class: "button primary" %>
+      </article>
+    <% end %>
+
+    <h2>Your interview</h2>
+    <% @interviews.each do |m| %>
+      <article class="card">
+        <p class="eyebrow"><%= m.scheduled_at ? m.scheduled_at.strftime("%A, %B %-d at %-l:%M %p") : "Day to be chosen" %></p>
+        <h3>With <%= m.host.name %></h3>
+        <p><%= m.sealed? ? "Your interview is saved on your computer. Only you can open it." : "On the day, open the Sondage app on your computer and click Start my interview." %></p>
+      </article>
+    <% end %>
+    <% if @interviews.empty? %><p>Your interview isn't set up yet. Sondage will call you to pick a day.</p><% end %>
+  </div>
+  <aside>
+    <article class="card">
+      <p class="eyebrow">For your interview</p>
+      <h3>The Sondage app</h3>
+      <p>Your interview is recorded on your own computer and locked so only you can open it.</p>
+      <%= link_to "Get the app", download_path, class: "button" %>
+    </article>
+    <p class="small"><%= link_to "My answers", fellow_intake_path(@fellow) %> · <%= link_to "My lists", fellow_ten_by_ten_path(@fellow) %></p>
+  </aside>
+</div>

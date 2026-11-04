@@ -1,0 +1,10 @@
+<% page_title "Unlock your account" %>
+<span class="wordmark">Sondage</span>
+<h1 style="font-size:34px;margin-top:16px">Unlock your account</h1>
+<p>After too many wrong passwords we lock the account for an hour, to keep it safe. Type your email to get an unlock link now.</p>
+<%= error_summary(resource) %>
+<%= form_for(resource, as: resource_name, url: unlock_path(resource_name), html: { method: :post, class: "stack card" }) do |f| %>
+  <div class="field"><%= f.label :email %><%= f.email_field :email, autofocus: true, autocomplete: "email", required: true %></div>
+  <%= f.submit "Email me an unlock link", class: "primary" %>
+<% end %>
+<p><%= link_to "Back to sign in", new_session_path(resource_name) %></p>

@@ -1,0 +1,18 @@
+<% page_title "Schedule" %>
+<div class="narrow">
+  <p class="eyebrow"><%= @fellow.display_name %></p>
+  <h1>Schedule a <%= Meeting::KINDS[@meeting.kind].downcase %></h1>
+  <%= error_summary(@meeting) %>
+  <%= form_with model: [@fellow, @meeting], class: "stack" do |f| %>
+    <%= f.hidden_field :kind %>
+    <div class="field"><%= f.label :title %><%= f.text_field :title, required: true %></div>
+    <% hosts = @meeting.interview? ? User.where(role: "historian") : User.where(role: "admin") %>
+    <div class="field"><%= f.label :host_id, @meeting.interview? ? "Historian" : "Admin" %><%= f.select :host_id, hosts.map { |u| [u.name, u.id] }, selected: (@meeting.host_id || (current_user.id if current_user.admin? && !@meeting.interview?)) %></div>
+    <div class="row">
+      <div class="field"><%= f.label :scheduled_at, "When" %><%= f.datetime_local_field :scheduled_at %></div>
+      <div class="field"><%= f.label :media_type, "Recording" %><%= f.select :media_type, [["Audio only", "audio"], ["Video and audio", "video"]] %></div>
+    </div>
+    <% if @meeting.interview? %><p class="hint small">In both cases the uncompressed audio is the master record. Video is recorded too, compressed to a practical size, and labelled as such in the capsule.</p><% end %>
+    <div class="actions"><%= f.submit "Schedule", class: "primary" %><%= link_to "Cancel", fellow_path(@fellow), class: "link" %></div>
+  <% end %>
+</div>

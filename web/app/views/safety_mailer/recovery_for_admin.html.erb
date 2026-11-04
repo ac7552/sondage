@@ -1,0 +1,3 @@
+<p><strong><%= @fellow.display_name %></strong> asked to restore their key on a new computer (<%= @recovery.client.presence || "Sondage app" %>).</p>
+<p>Before releasing Sondage's safety copy, call them on a number you already have on file and confirm it was really them. The copy can be released from <%= @recovery.release_after.strftime("%B %-d at %-l:%M %p") %>.</p>
+<p><a href="<%= fellow_url(@fellow) %>">Open <%= @fellow.display_name %>'s profile</a></p>

@@ -1,0 +1,10 @@
+# Action Cable only relays call introductions (offer, answer, network candidates).
+# No audio, video or recording ever passes through it.
+development:
+  adapter: async
+
+test:
+  adapter: test
+
+production:
+  adapter: async # use redis or solid_cable when running more than one server process

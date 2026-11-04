@@ -1,0 +1,66 @@
+<% page_title "Intake" %>
+<% editable = can_edit_fellow? %>
+<p class="eyebrow">Intake · <%= @fellow.display_name %></p>
+<h1>The outline of a life.</h1>
+<p class="lede">Answer what you can. Nothing here needs to be exact: "around 1960" is perfectly fine. Your answers start the first draft of your timeline.</p>
+
+<%= form_with url: fellow_intake_path(@fellow), method: :patch, class: "stack", style: "max-width: 760px" do |f| %>
+  <% @sections.each do |section, questions| %>
+    <fieldset>
+      <legend><%= section %></legend>
+      <div class="stack" style="max-width: none">
+        <% questions.each do |q| %>
+          <% a = @answers[q.id] %>
+          <% name = "answers[#{q.id}]" %>
+          <div class="field">
+            <label for="q<%= q.id %>"><%= q.prompt %><%= " *" if q.required %></label>
+            <% if q.help.present? %><span class="hint"><%= q.help %></span><% end %>
+            <% if q.kind == "long_text" %><%= text_area_tag name, a&.value, id: "q#{q.id}", disabled: !editable %>
+            <% elsif q.kind == "year" %><%= number_field_tag name, a&.value, id: "q#{q.id}", in: 1890..Date.current.year, disabled: !editable %>
+            <% elsif q.kind == "date" %><%= date_field_tag name, a&.value, id: "q#{q.id}", disabled: !editable %>
+            <% elsif q.kind == "select" %><%= select_tag name, options_for_select(q.option_list, a&.value), include_blank: "Choose…", id: "q#{q.id}", disabled: !editable %>
+            <% elsif q.kind == "multi_select" %>
+              <div class="choices">
+                <%= hidden_field_tag "#{name}[]", "" %>
+                <% q.option_list.each do |opt| %>
+                  <label><%= check_box_tag "#{name}[]", opt, a&.values&.include?(opt), id: nil, disabled: !editable %> <%= opt %></label>
+                <% end %>
+              </div>
+            <% else %><%= text_field_tag name, a&.value, id: "q#{q.id}", disabled: !editable %>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </fieldset>
+  <% end %>
+  <% if editable %><div class="actions"><%= f.submit "Save answers", class: "primary" %></div><% end %>
+<% end %>
+
+<h2 id="key-dates">Key dates you remember</h2>
+<p>Births, moves, schools, weddings, jobs, losses. One line each is enough. These appear on your timeline straight away.</p>
+<table class="list">
+  <thead><tr><th>When</th><th>What happened</th><th>Where</th><th></th></tr></thead>
+  <tbody>
+    <% @events.each do |ev| %>
+      <tr><td><%= ev.when_label %></td><td><%= ev.title %></td><td><%= ev.place_name %></td>
+        <td><% if editable %><%= link_to "Edit", edit_fellow_event_path(@fellow, ev), class: "small" %><% end %></td></tr>
+    <% end %>
+  </tbody>
+</table>
+<% if editable %>
+  <%= form_with model: [@fellow, @event], class: "card", style: "margin-top: 20px" do |f| %>
+    <%= hidden_field_tag :return_to, "intake" %>
+    <div class="row" style="grid-template-columns: 110px 1fr 1fr auto; align-items: end">
+      <div class="field"><%= f.label :year %><%= f.number_field :year, required: true, in: 1890..Date.current.year %></div>
+      <div class="field"><%= f.label :title, "What happened" %><%= f.text_field :title, required: true, placeholder: "Moved to New York" %></div>
+      <div class="field"><%= f.label :place_name, "Where (optional)" %><%= f.text_field :place_name %></div>
+      <%= f.submit "Add", class: "button" %>
+    </div>
+  <% end %>
+
+  <article class="card" style="margin-top: 40px">
+    <h3>Finished for now?</h3>
+    <p>Completing the intake saves the first version of your timeline, exactly as it stands. You can keep adding to it afterwards.</p>
+    <%= button_to "Complete the intake", complete_fellow_intake_path(@fellow), class: "primary", form: { data: { confirm: "Save the first version of the timeline now?" } } %>
+  </article>
+<% end %>

@@ -1,0 +1,12 @@
+node_modules/
+e2e/out/
+web/storage/*
+!web/storage/.keep
+web/tmp/*
+!web/tmp/.keep
+web/log/*
+!web/log/.keep
+web/public/downloads/*
+!web/public/downloads/.keep
+web/config/master.key
+.DS_Store

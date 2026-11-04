@@ -1,0 +1,108 @@
+<% page_title @fellow.display_name %>
+<p class="eyebrow">Fellow<% if @fellow.birth_year %> · born <%= @fellow.birth_year %><%= " in #{@fellow.birth_place}" if @fellow.birth_place.present? %><% end %></p>
+<h1><%= @fellow.display_name %></h1>
+<ol class="stages"><%= stage_steps(@fellow) %></ol>
+<div class="actions">
+  <%= link_to "Open timeline", fellow_timeline_path(@fellow), class: "button primary" %>
+  <%= link_to "Intake", fellow_intake_path(@fellow), class: "button quiet" %>
+  <%= link_to "10x10 lists", fellow_ten_by_ten_path(@fellow), class: "button quiet" %>
+  <%= link_to "Timeline versions", fellow_timeline_versions_path(@fellow), class: "button quiet" %>
+  <% if current_user.admin? %>
+    <%= form_with url: stage_fellow_path(@fellow), method: :patch, style: "display:flex;gap:8px" do |f| %>
+      <%= f.select :stage, Fellow::STAGES.map { |s| [Fellow::STAGE_LABELS[s], s] }, selected: @fellow.stage %>
+      <%= f.submit "Set stage", class: "button quiet" %>
+    <% end %>
+  <% end %>
+</div>
+
+<div class="split" style="margin-top: 24px">
+  <div>
+    <h2>Meetings</h2>
+    <% @meetings.each do |m| %>
+      <article class="card">
+        <p class="eyebrow"><%= Meeting::KINDS[m.kind] %> · <%= m.media_type %> · <%= when_label(m.scheduled_at) %></p>
+        <h3><%= link_to m.title, meeting_path(m) %></h3>
+        <p class="small">With <%= m.host.name %> · <span class="tag <%= 'good' if m.sealed? %>"><%= m.status.humanize %></span></p>
+        <% if m.capsule %>
+          <dl class="facts">
+            <dt>Sealed</dt><dd><%= m.capsule.sealed_at.strftime("%B %-d, %Y at %-l:%M %p") %></dd>
+            <dt>Fingerprint</dt><dd class="mono"><%= m.capsule.fingerprint %></dd>
+            <dt>Time certified</dt><dd><%= m.capsule.timestamp_status == "granted" ? m.capsule.timestamp_gen_time&.strftime("%B %-d, %Y %H:%M UTC") : "No (#{m.capsule.timestamp_status})" %></dd>
+            <dt>Size</dt><dd><%= number_to_human_size(m.capsule.capsule_bytes) %>, encrypted to <%= @fellow.display_name.split.first %>'s key</dd>
+          </dl>
+          <p class="small muted">Sondage holds only this receipt. The recording itself is on <%= @fellow.display_name.split.first %>'s own storage.</p>
+        <% end %>
+      </article>
+    <% end %>
+    <% if current_user.admin? %>
+      <div class="actions">
+        <%= link_to "Schedule 10x10 session", new_fellow_meeting_path(@fellow, kind: "ten_by_ten"), class: "button quiet" %>
+        <%= link_to "Schedule interview", new_fellow_meeting_path(@fellow, kind: "interview"), class: "button quiet" %>
+      </div>
+    <% end %>
+
+    <h2>Intake answers</h2>
+    <dl class="facts">
+      <% @questions.each do |q| %>
+        <% a = @answers[q.id] %>
+        <dt><%= q.prompt %></dt><dd><%= a&.display_value.presence || content_tag(:span, "—", class: "muted") %></dd>
+      <% end %>
+    </dl>
+  </div>
+  <aside>
+    <h2>Safety copies</h2>
+    <% if @fellow.safety_contacts.any? %>
+      <p class="small muted">Any two of these four rebuild <%= @fellow.display_name.split.first %>'s key. None can open anything alone.</p>
+      <ul class="log">
+        <% @fellow.safety_contacts.each do |c| %>
+          <li><span class="muted"><%= c.role == "self" ? "Fellow" : "Family" %></span><span><%= c.name %><%= " · #{c.email}" if can_edit_fellow? %></span></li>
+        <% end %>
+        <li><span class="muted">Sondage</span><span><%= @fellow.sondage_share.present? ? "Held by Sondage, released only after a check" : "Not received" %></span></li>
+      </ul>
+    <% else %>
+      <p class="small muted">Not set up yet. They're created in the Sondage app the first time <%= @fellow.display_name.split.first %> signs in.</p>
+    <% end %>
+
+    <% @fellow.recoveries.first(3).each do |r| %>
+      <article class="card">
+        <p class="eyebrow">Recovery request · <%= r.created_at.strftime("%b %-d, %-l:%M %p") %></p>
+        <p><span class="tag <%= 'accent' if r.status.in?(%w[pending blocked]) %> <%= 'good' if r.status == 'complete' %>"><%= r.status.capitalize %></span>
+          <% if r.status == "blocked" %> Stopped by <%= r.blocked_by&.name %>.<% end %></p>
+        <ul class="log">
+          <% @fellow.safety_contacts.each do |c| %>
+            <li><span class="muted"><%= c.name %></span><span><%= r.approvals.any? { |a| a.safety_contact_id == c.id } ? "Approved" : "Waiting" %></span></li>
+          <% end %>
+          <li><span class="muted">Sondage</span><span><%= r.sondage_released? ? "Released by #{r.released_by&.name}" : (r.pending? ? "Not released" : "—") %></span></li>
+        </ul>
+        <% if r.status == "blocked" && current_user.admin? && r == @fellow.recoveries.first %>
+          <p class="small">After calling <%= @fellow.display_name.split.first %> to check, you can clear this so they can ask again.</p>
+          <%= button_to "Clear the stop", cancel_recovery_path(r), method: :patch, class: "button quiet" %>
+        <% end %>
+        <% if r.pending? && current_user.admin? %>
+          <% if r.sondage_releasable? && !r.ready? %>
+            <p class="small">Call <%= @fellow.display_name.split.first %> on a number already on file and confirm it's really them, then:</p>
+            <%= button_to "Release Sondage's safety copy", release_recovery_path(r), method: :patch, class: "button primary", form: { data: { confirm: "Have you confirmed by phone that this request is really from #{@fellow.display_name}?" } } %>
+          <% elsif !r.sondage_released? && !r.ready? %>
+            <p class="small muted">Sondage's copy can be released from <%= r.release_after.strftime("%B %-d at %-l:%M %p") %>.</p>
+          <% end %>
+          <%= button_to "Cancel this request", cancel_recovery_path(r), method: :patch, class: "link", form: { data: { confirm: "Cancel this recovery request?" } } %>
+        <% end %>
+      </article>
+    <% end %>
+
+    <h2>Timeline versions</h2>
+    <ul class="log">
+      <% @versions.each do |v| %>
+        <li><span class="muted"><%= v.created_at.strftime("%b %-d, %Y") %></span><span><%= link_to v.label, fellow_timeline_path(@fellow, version: v.id) %></span></li>
+      <% end %>
+    </ul>
+    <% if @versions.empty? %><p class="muted small">None yet. The first is saved when the intake is completed.</p><% end %>
+
+    <h2>Chain of custody</h2>
+    <ul class="log">
+      <% @audit.each do |e| %>
+        <li><span class="muted"><%= e.created_at.strftime("%b %-d %H:%M") %></span><span><%= e.action.tr("._", "  ") %> · <%= e.actor&.name || "system" %></span></li>
+      <% end %>
+    </ul>
+  </aside>
+</div>

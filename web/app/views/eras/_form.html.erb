@@ -1,0 +1,12 @@
+<%= error_summary(era) %>
+<%= form_with model: [@fellow, era], class: "stack" do |f| %>
+  <div class="field"><%= f.label :title %><%= f.text_field :title, required: true, placeholder: "Childhood in Ponce" %></div>
+  <div class="row">
+    <div class="field"><%= f.label :start_year %><%= f.number_field :start_year, required: true %></div>
+    <div class="field"><%= f.label :end_year, "End year (blank for now)" %><%= f.number_field :end_year %></div>
+    <div class="field"><%= f.label :tone, "Colour" %><%= f.select :tone, Era::TONES.map { |t| [t.capitalize, t] } %></div>
+  </div>
+  <div class="field"><%= f.label :summary, "A sentence or two about this time" %><%= f.text_area :summary %></div>
+  <div class="actions"><%= f.submit "Save", class: "primary" %><%= link_to "Cancel", fellow_timeline_path(@fellow), class: "link" %>
+    <% if era.persisted? %><%= link_to "Remove this era", fellow_era_path(@fellow, era), data: { method: :delete }, class: "link js-delete" %><% end %></div>
+<% end %>

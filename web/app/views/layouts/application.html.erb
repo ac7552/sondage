@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title><%= page_title %></title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <%= csrf_meta_tags %>
+  <%= csp_meta_tag %>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <%= stylesheet_link_tag "application" %>
+  <%= yield :head %>
+  <script src="/sondage/ui.js" defer></script>
+</head>
+<body class="<%= content_for(:body_class) %> <%= "fellow-ui" if user_signed_in? && current_user.fellow? %>">
+  <header class="masthead">
+    <%= link_to root_path, class: "brand" do %><span class="wordmark">Sondage</span><span class="sub">Making human history</span><% end %>
+    <% if user_signed_in? %>
+      <nav>
+        <%= link_to "Home", root_path %>
+        <% if current_user.admin? %><%= link_to "Intake questions", intake_questions_path %><% end %>
+        <% if current_user.fellow? && current_user.fellow %><%= link_to "My timeline", fellow_timeline_path(current_user.fellow) %><% end %>
+        <span class="who"><%= current_user.name %> · <%= current_user.role.capitalize %></span>
+        <%= button_to "Sign out", destroy_user_session_path, method: :delete, class: "link" %>
+      </nav>
+    <% end %>
+  </header>
+  <main>
+    <% if notice %><p class="flash notice"><%= notice %></p><% end %>
+    <% if alert %><p class="flash alert"><%= alert %></p><% end %>
+    <%= yield %>
+  </main>
+  <footer class="colophon">Human-made. No AI is used to collect, record, transcribe or interpret anything here.</footer>
+</body>
+</html>

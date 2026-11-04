@@ -1,0 +1,3 @@
+<p><strong><%= @contact.name %></strong> said a recovery request for <strong><%= @fellow.display_name %></strong> wasn't made by them. The request is stopped.</p>
+<p>Please call <%= @fellow.display_name %> on a number you already have on file.</p>
+<p><a href="<%= fellow_url(@fellow) %>">Open <%= @fellow.display_name %>'s profile</a></p>

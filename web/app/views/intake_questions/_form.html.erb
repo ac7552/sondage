@@ -1,0 +1,14 @@
+<%= error_summary(question) %>
+<%= form_with model: question, class: "stack" do |f| %>
+  <div class="field"><%= f.label :section %><%= f.text_field :section, list: "sections" %>
+    <datalist id="sections"><% IntakeQuestion.distinct.pluck(:section).each do |s| %><option value="<%= s %>"><% end %></datalist></div>
+  <div class="field"><%= f.label :prompt, "Question" %><%= f.text_field :prompt, required: true %></div>
+  <div class="field"><%= f.label :help, "Help text (optional)" %><%= f.text_area :help, rows: 2 %></div>
+  <div class="row">
+    <div class="field"><%= f.label :kind, "Answer type" %><%= f.select :kind, IntakeQuestion::KINDS.invert %></div>
+    <div class="field"><%= f.label :position %><%= f.number_field :position %></div>
+  </div>
+  <div class="field"><%= f.label :options, "Choices (for dropdowns and checkboxes, one per line)" %><%= f.text_area :options, rows: 5 %></div>
+  <div class="choices"><label><%= f.check_box :required %> Required</label></div>
+  <div class="actions"><%= f.submit "Save question", class: "primary" %><%= link_to "Cancel", intake_questions_path, class: "link" %></div>
+<% end %>

@@ -1,0 +1,21 @@
+<% page_title "Add a Fellow" %>
+<div class="narrow">
+  <p class="eyebrow">Admin</p>
+  <h1>Add a Fellow</h1>
+  <%= error_summary(@user) %><%= error_summary(@fellow) %>
+  <%= form_with url: admin_fellows_path, class: "stack" do |f| %>
+    <%= fields_for :user, @user do |u| %>
+      <div class="field"><%= u.label :name, "Full name" %><%= u.text_field :name, required: true %></div>
+      <div class="field"><%= u.label :email, "Email" %><%= u.email_field :email, required: true %></div>
+      <div class="field"><%= u.label :password, "Password (optional)" %><%= u.text_field :password, autocomplete: "off" %><span class="hint">Leave blank and we'll email them a link to choose their own. Set one only if you'll tell them in person.</span></div>
+    <% end %>
+    <%= fields_for :fellow, @fellow do |p| %>
+      <div class="field"><%= p.label :preferred_name, "Preferred name (optional)" %><%= p.text_field :preferred_name %></div>
+      <div class="row">
+        <div class="field"><%= p.label :birth_year %><%= p.number_field :birth_year, in: 1900..Date.current.year %></div>
+        <div class="field"><%= p.label :birth_place %><%= p.text_field :birth_place %></div>
+      </div>
+    <% end %>
+    <div class="actions"><%= f.submit "Add Fellow", class: "primary" %><%= link_to "Cancel", root_path, class: "link" %></div>
+  <% end %>
+</div>

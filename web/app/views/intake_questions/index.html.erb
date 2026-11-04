@@ -1,0 +1,21 @@
+<% page_title "Intake questions" %>
+<p class="eyebrow">Admin</p>
+<h1>Intake questions</h1>
+<p class="lede">Every Fellow answers these before the 10x10 session. Questions are written by people, for people: no generated prompts.</p>
+<div class="actions"><%= link_to "Add a question", new_intake_question_path, class: "button primary" %></div>
+<% @sections.each do |section, questions| %>
+  <h2><%= section %></h2>
+  <% questions.each do |q| %>
+    <div class="card question">
+      <div>
+        <div class="kind"><%= IntakeQuestion::KINDS[q.kind] %><%= " · required" if q.required %> · position <%= q.position %></div>
+        <div class="serif" style="font-size: 20px"><%= q.prompt %></div>
+        <% if q.choice? %><div class="small muted"><%= q.option_list.join(" · ") %></div><% end %>
+      </div>
+      <div class="actions" style="margin: 0">
+        <%= link_to "Edit", edit_intake_question_path(q), class: "button quiet" %>
+        <%= button_to "Remove", intake_question_path(q), method: :delete, class: "link", form: { data: { confirm: "Remove this question?" } } %>
+      </div>
+    </div>
+  <% end %>
+<% end %>

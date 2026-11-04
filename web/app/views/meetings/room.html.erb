@@ -1,0 +1,95 @@
+<% page_title "Interview room" %>
+<div id="room"
+     data-meeting-id="<%= @meeting.id %>"
+     data-fellow-name="<%= @fellow.display_name %>"
+     data-media-type="<%= @meeting.media_type %>"
+     data-user-id="<%= current_user.id %>"
+     data-registered-key="<%= current_user.signing_public_key %>"
+     data-key-url="<%= signing_key_path %>"
+     data-cable-js="<%= asset_path('actioncable.esm.js') %>"
+     data-ice-servers="<%= Rails.configuration.x.ice_servers.to_json %>"
+     data-home-url="<%= root_path %>">
+  <header class="room-bar">
+    <%= link_to root_path, class: "brand" do %><span class="wordmark">Sondage</span><% end %>
+    <span class="room-title"><%= @meeting.title %></span>
+    <span class="room-key small muted" id="key-status">Preparing your signing key…</span>
+  </header>
+
+  <section class="room-check" id="check">
+    <div class="narrow">
+      <p class="eyebrow">Before you join</p>
+      <h1>Headphones on, processing off.</h1>
+      <p class="lede">Your side of the conversation is recorded here in your browser, raw, and sent straight to <%= @fellow.display_name.split.first %>'s computer. It never passes through Sondage.</p>
+      <div class="grid two">
+        <div class="card stack" style="max-width:none">
+          <div class="field"><label for="mic">Microphone</label><select id="mic"></select></div>
+          <div class="field" id="cam-field" hidden><label for="cam">Camera</label><select id="cam"></select></div>
+          <div class="meter"><div id="meter"></div></div>
+          <label class="choices"><span><input type="checkbox" id="headphones"> I'm wearing headphones</span></label>
+          <video id="preview" autoplay muted playsinline hidden></video>
+        </div>
+        <div>
+          <ul class="checks" id="processing"></ul>
+          <p class="small muted" id="browser-note"></p>
+          <button class="primary" id="join" disabled>Join the interview</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="room-live" id="live" hidden>
+    <div class="stage <%= 'audio-only' if @meeting.media_type == 'audio' %>">
+      <figure class="tile remote"><video id="remote" autoplay playsinline></video>
+        <div class="voice-card"><div class="ring" id="remote-ring"></div><span class="initials"><%= @fellow.display_name.split.map(&:first).first(2).join.upcase %></span></div>
+        <figcaption id="remote-name">Waiting for <%= @fellow.display_name %>…</figcaption></figure>
+      <figure class="tile local"><video id="local" autoplay muted playsinline></video><figcaption>You</figcaption></figure>
+    </div>
+    <aside class="console">
+      <div class="status-line"><span class="dot" id="dot"></span><span id="conn">Connecting…</span></div>
+      <div class="rec-state" id="rec-state">Not recording</div>
+      <div class="timer" id="timer">00:00:00</div>
+      <p class="small" id="sent">Nothing recorded yet.</p>
+      <div class="rec-controls">
+        <button class="primary" id="h-start" disabled>Start recording</button>
+        <p class="small muted" id="h-wait">The button turns on when <%= @fellow.display_name.split.first %>'s app is connected.</p>
+        <button class="danger" id="h-end" hidden>End interview and save</button>
+      </div>
+      <p class="small muted">You start and end the recording. <%= @fellow.display_name.split.first %>'s app saves it on their computer and shows them a large "Recording" sign.</p>
+      <details open>
+        <summary class="eyebrow">Your questions</summary>
+        <div class="notes"><%= simple_format(@meeting.historian_notes.presence || "You haven't written questions for this interview yet.") %></div>
+      </details>
+      <details>
+        <summary class="eyebrow">Timeline</summary>
+        <ul class="mini-timeline">
+          <% @fellow_data[:eras].each do |era| %>
+            <li><strong><%= era[:title] %></strong> <span class="muted"><%= era[:startYear] %>–<%= era[:endYear] || "today" %></span>
+              <ul><% @fellow_data[:events].select { |e| e[:eraId] == era[:id] }.each do |e| %><li><%= e[:when] %> · <%= e[:title] %></li><% end %></ul>
+            </li>
+          <% end %>
+        </ul>
+      </details>
+    </aside>
+  </section>
+
+  <div class="sign-dialog" id="sign" hidden>
+    <div class="card">
+      <p class="eyebrow">Co-author signature</p>
+      <h2>Sign this capsule?</h2>
+      <p>Your browser checked that every piece of your recording in the capsule matches what you recorded, byte for byte.</p>
+      <dl class="facts" id="sign-facts"></dl>
+      <div class="actions"><button class="primary" id="sign-yes">Sign as co-author</button><button id="sign-no">Don't sign</button></div>
+    </div>
+  </div>
+
+  <section class="room-done" id="done" hidden>
+    <div class="narrow">
+      <p class="eyebrow">Sealed</p>
+      <h1>The capsule is sealed.</h1>
+      <p class="lede">It now exists only on <%= @fellow.display_name.split.first %>'s computer, encrypted to their key. Your browser has discarded its copy of your recording.</p>
+      <dl class="facts" id="done-facts"></dl>
+      <div class="actions"><%= link_to "Back to your interviews", root_path, class: "button primary" %></div>
+    </div>
+  </section>
+</div>
+<script type="module" src="/sondage/historian.js"></script>

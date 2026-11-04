@@ -1,0 +1,15 @@
+{
+  "name": "sondage-e2e",
+  "private": true,
+  "type": "module",
+  "description": "End-to-end interview test: Electron (Fellow) + Chrome (historian) with synthetic microphones, against a stand-in for the Rails app.",
+  "scripts": {
+    "server": "node server.mjs",
+    "call": "node e2e-call.mjs",
+    "timeline": "node shot-timeline.mjs"
+  },
+  "dependencies": {
+    "playwright-core": "^1.50.0",
+    "ws": "^8.18.0"
+  }
+}

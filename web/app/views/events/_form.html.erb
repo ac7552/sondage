@@ -1,0 +1,17 @@
+<%= error_summary(event) %>
+<%= form_with model: [@fellow, event], class: "stack" do |f| %>
+  <div class="field"><%= f.label :title, "What happened" %><%= f.text_field :title, required: true %></div>
+  <div class="row">
+    <div class="field"><%= f.label :year %><%= f.number_field :year, required: true, in: 1890..Date.current.year %></div>
+    <div class="field"><%= f.label :month, "Month (optional)" %><%= f.select :month, Date::MONTHNAMES.compact.each_with_index.map { |m, i| [m, i + 1] }, include_blank: "—" %></div>
+    <div class="field"><%= f.label :date_text, "Or in your words" %><%= f.text_field :date_text, placeholder: "spring 1962" %></div>
+  </div>
+  <div class="field"><%= f.label :place_name, "Where" %><%= f.text_field :place_name %></div>
+  <div class="field"><%= f.label :story, "The story, in your own words" %><%= f.text_area :story, rows: 6 %></div>
+  <% if @fellow.capsules.any? %>
+    <div class="field"><%= f.label :capsule_moment_seconds, "Comes up in the sealed interview at (seconds from start)" %><%= f.number_field :capsule_moment_seconds, min: 0 %>
+      <span class="hint">A pointer into the sealed recording. It never changes the recording itself.</span></div>
+  <% end %>
+  <div class="actions"><%= f.submit "Save", class: "primary" %><%= link_to "Cancel", fellow_timeline_path(@fellow), class: "link" %>
+    <% if event.persisted? %><%= link_to "Remove this event", fellow_event_path(@fellow, event), data: { method: :delete }, class: "link js-delete" %><% end %></div>
+<% end %>

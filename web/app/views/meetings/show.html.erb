@@ -1,0 +1,42 @@
+<% page_title @meeting.title %>
+<p class="eyebrow"><%= Meeting::KINDS[@meeting.kind] %> · <%= when_label(@meeting.scheduled_at) %></p>
+<h1><%= @meeting.title %></h1>
+<p>With <%= @meeting.host.name %> · <%= @meeting.media_type == "video" ? "Video and audio" : "Audio only" %> · <span class="tag <%= 'good' if @meeting.sealed? %>"><%= @meeting.status.humanize %></span></p>
+
+<div class="split">
+  <div>
+    <% if @meeting.interview? && (current_user.id == @meeting.host_id || current_user.admin?) %>
+      <h2>Your questions</h2>
+      <p class="muted">Written by you, from the profile and timeline. No generated questions or themes.</p>
+      <%= form_with model: @meeting, class: "stack" do |f| %>
+        <%= f.text_area :historian_notes, rows: 16 %>
+        <%= f.submit "Save", class: "primary" %>
+      <% end %>
+    <% end %>
+    <% if @meeting.capsule %>
+      <h2>Sealed capsule</h2>
+      <dl class="facts">
+        <dt>Capsule</dt><dd class="mono"><%= @meeting.capsule.capsule_uuid %></dd>
+        <dt>Fingerprint</dt><dd class="mono"><%= @meeting.capsule.fingerprint %></dd>
+        <dt>Sealed</dt><dd><%= @meeting.capsule.sealed_at.strftime("%B %-d, %Y at %-l:%M %p") %></dd>
+      </dl>
+    <% end %>
+  </div>
+  <aside>
+    <% if current_user.admin? && @meeting.interview? && !@meeting.sealed? %>
+      <%= form_with model: @meeting, class: "card stack" do |f| %>
+        <h3>Recording</h3>
+        <%= f.select :media_type, [["Video and audio", "video"], ["Audio only", "audio"]] %>
+        <%= f.submit "Save", class: "button quiet" %>
+      <% end %>
+    <% end %>
+    <% if @meeting.interview? && current_user.id == @meeting.host_id && !@meeting.sealed? %>
+      <article class="card">
+        <h3>Interview room</h3>
+        <p class="small">Open it in the browser you'll use for the interview, with headphones on.</p>
+        <%= link_to "Open interview room", room_meeting_path(@meeting), class: "button primary" %>
+      </article>
+    <% end %>
+    <p><%= link_to "Profile", fellow_path(@fellow) %> · <%= link_to "Timeline", fellow_timeline_path(@fellow) %> · <%= link_to "10x10", fellow_ten_by_ten_path(@fellow) %></p>
+  </aside>
+</div>

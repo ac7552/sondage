@@ -1,0 +1,20 @@
+<% page_title "Fellows" %>
+<p class="eyebrow">Admin</p>
+<h1>Fellows</h1>
+<div class="actions"><%= link_to "Add a Fellow", new_admin_fellow_path, class: "button primary" %><%= link_to "Edit intake questions", intake_questions_path, class: "button quiet" %></div>
+
+<table class="list" style="margin-top: 28px">
+  <thead><tr><th>Fellow</th><th>Stage</th><th>Next meeting</th><th></th></tr></thead>
+  <tbody>
+    <% @fellows.each do |f| %>
+      <% nxt = f.meetings.select { |m| m.status.in?(%w[scheduled in_progress]) }.min_by { |m| m.scheduled_at || Time.current } %>
+      <tr>
+        <td><%= link_to f.display_name, fellow_path(f) %><div class="small muted"><%= [f.birth_year, f.birth_place].compact.join(" · ") %></div></td>
+        <td><span class="tag <%= 'good' if f.stage == 'delivered' %>"><%= f.stage_label %></span></td>
+        <td class="small"><%= nxt ? "#{nxt.title.split(' with ').first} · #{nxt.scheduled_at&.strftime('%b %-d, %-l:%M %p') || 'unscheduled'}" : "—" %></td>
+        <td class="small"><%= link_to "Timeline", fellow_timeline_path(f) %></td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>
+<% if @fellows.empty? %><p class="muted">No Fellows yet.</p><% end %>

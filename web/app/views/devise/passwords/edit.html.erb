@@ -1,0 +1,11 @@
+<% page_title "Choose a password" %>
+<span class="wordmark">Sondage</span>
+<h1 style="font-size:34px;margin-top:16px">Choose a password</h1>
+<p>At least 8 characters. A short sentence you'll remember works well, like <em>my garden has red roses</em>.</p>
+<%= error_summary(resource) %>
+<%= form_for(resource, as: resource_name, url: password_path(resource_name), html: { method: :put, class: "stack card" }) do |f| %>
+  <%= f.hidden_field :reset_password_token %>
+  <div class="field"><%= f.label :password, "New password" %><%= f.password_field :password, autofocus: true, autocomplete: "new-password", required: true %></div>
+  <div class="field"><%= f.label :password_confirmation, "Type it again" %><%= f.password_field :password_confirmation, autocomplete: "new-password", required: true %></div>
+  <%= f.submit "Save my password", class: "primary" %>
+<% end %>

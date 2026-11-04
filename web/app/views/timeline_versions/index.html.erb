@@ -1,0 +1,26 @@
+<% page_title "Timeline versions" %>
+<p class="eyebrow">Timeline · <%= @fellow.display_name %></p>
+<h1>How the story grew.</h1>
+<p class="lede">Each version is frozen the moment it is saved. Later changes never overwrite earlier ones, and the sealed interview is never touched.</p>
+<table class="list">
+  <thead><tr><th>Version</th><th>Saved by</th><th>Contents</th><th>Fingerprint</th></tr></thead>
+  <tbody>
+    <% @versions.each do |v| %>
+      <% s = v.snapshot %>
+      <tr>
+        <td><%= link_to v.label, fellow_timeline_path(@fellow, version: v.id) %><div class="small muted"><%= TimelineVersion::STAGES[v.stage] %></div></td>
+        <td><%= v.author.name %><div class="small muted"><%= v.created_at.strftime("%B %-d, %Y %-l:%M %p") %></div></td>
+        <td class="small"><%= pluralize(s["eras"].size, "chapter") %>, <%= pluralize(s["events"].size, "event") %>, <%= pluralize(s["items"].size, "item") %></td>
+        <td class="mono"><%= v.fingerprint %></td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>
+<% if @versions.empty? %><p class="muted">No versions yet.</p><% end %>
+<% if can_edit_fellow? %>
+  <%= form_with url: fellow_timeline_versions_path(@fellow), class: "card stack", style: "margin-top: 32px" do |f| %>
+    <h3>Save the timeline as it stands now</h3>
+    <div class="field"><%= f.label :label, "Name (optional)" %><%= f.text_field :label, placeholder: "After the family reunion" %></div>
+    <%= f.submit "Save version", class: "primary" %>
+  <% end %>
+<% end %>

@@ -1,0 +1,4 @@
+<p>Hello <%= @resource.name.split.first %>,</p>
+<p>Your Sondage account was locked after too many wrong passwords. That's only to keep it safe.</p>
+<p style="margin:28px 0"><a href="<%= unlock_url(@resource, unlock_token: @token) %>" style="background:#1c1a17;color:#f7f4ee;padding:14px 24px;border-radius:8px;text-decoration:none;font-family:-apple-system,'Segoe UI',sans-serif;font-size:17px">Unlock my account</a></p>
+<p>Or simply wait an hour and it unlocks by itself.</p>

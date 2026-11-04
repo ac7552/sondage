@@ -1,0 +1,19 @@
+<% page_title "Download the app" %>
+<div class="narrow">
+  <p class="eyebrow">For the interview</p>
+  <h1>The Sondage app</h1>
+  <p class="lede">Your interview is recorded on your own computer, exactly as you sound, and sealed so that only you can open it. Nothing is sent to Sondage except a receipt.</p>
+  <div class="actions">
+    <%= link_to "Download for #{{ mac: 'Mac', windows: 'Windows', linux: 'Linux' }[@platform]}", @downloads[@platform], class: "button primary" %>
+  </div>
+  <p class="small muted">Also for <% (@downloads.keys - [@platform]).each_with_index do |p, i| %><%= ", " if i > 0 %><%= link_to({ mac: "Mac", windows: "Windows", linux: "Linux" }[p], @downloads[p]) %><% end %>.</p>
+
+  <h2>What happens next</h2>
+  <ol>
+    <li>Open the app and sign in with the same email and password you use here.</li>
+    <li>The app creates your key and gives you three recovery shares to print. Give them to people you trust: any two can restore your key.</li>
+    <li>Check your microphone with headphones on, a day or two before the interview.</li>
+    <li>At the scheduled time, press <em>Join interview</em>.</li>
+  </ol>
+  <p class="small muted">Someone from Sondage can do this setup with you on a call. Just ask.</p>
+</div>

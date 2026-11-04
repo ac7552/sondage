@@ -1,0 +1,46 @@
+<% page_title "#{@fellow.display_name} · Timeline" %>
+<% editable = can_edit_fellow? && @version.nil? %>
+<header class="tl-bar">
+  <%= link_to root_path, class: "brand" do %><span class="wordmark">Sondage</span><% end %>
+  <div class="tl-who">
+    <span class="serif"><%= @fellow.display_name %></span>
+    <form method="get" class="tl-version">
+      <label class="visually-hidden" for="version">Version</label>
+      <select name="version" id="version" onchange="this.form.submit()">
+        <option value="">Current, still growing</option>
+        <% @versions.reverse.each do |v| %>
+          <option value="<%= v.id %>" <%= "selected" if v == @version %>><%= v.label %></option>
+        <% end %>
+      </select>
+    </form>
+  </div>
+  <nav class="tl-actions">
+    <% if editable %>
+      <details class="tl-add">
+        <summary class="button">Add to the timeline</summary>
+        <div class="tl-menu">
+          <%= link_to "Photograph", new_fellow_item_path(@fellow, kind: "photo") %>
+          <%= link_to "Song", new_fellow_item_path(@fellow, kind: "song") %>
+          <%= link_to "Article or clipping", new_fellow_item_path(@fellow, kind: "article") %>
+          <%= link_to "Letter or document", new_fellow_item_path(@fellow, kind: "letter") %>
+          <%= link_to "Place", new_fellow_item_path(@fellow, kind: "place") %>
+          <%= link_to "Event", new_fellow_event_path(@fellow) %>
+          <%= link_to "Chapter (era)", new_fellow_era_path(@fellow) %>
+        </div>
+      </details>
+      <%= button_to "Save this version", fellow_timeline_versions_path(@fellow), class: "button quiet", form: { data: { confirm: "Save the timeline exactly as it stands now as a new version?" } } %>
+    <% end %>
+    <%= link_to "Profile", fellow_path(@fellow), class: "link" %>
+  </nav>
+</header>
+<% if notice %><p class="flash notice tl-flash"><%= notice %></p><% end %>
+<% if @version %>
+  <p class="tl-frozen">You're looking at <strong><%= @version.label %></strong>, saved by <%= @version.author.name %>. It can't be changed. Fingerprint <span class="mono"><%= @version.fingerprint %></span><% if @version.capsule_manifest_sha256 %> · refers to sealed capsule <span class="mono"><%= @version.capsule_manifest_sha256.first(16).upcase.scan(/.{4}/).join(" ") %></span><% end %></p>
+<% end %>
+
+<script type="application/json" id="timeline-data"><%= raw json_escape(@data.to_json) %></script>
+<div id="timeline"
+     data-editable="<%= editable %>"
+     data-base="<%= fellow_path(@fellow) %>"
+     data-name="<%= @fellow.display_name %>"></div>
+<script type="module" src="/sondage/timeline.js"></script>

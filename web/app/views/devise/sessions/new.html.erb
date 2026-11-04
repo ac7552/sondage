@@ -1,0 +1,13 @@
+<% page_title "Sign in" %>
+<span class="wordmark">Sondage</span>
+<p class="eyebrow">Making human history</p>
+<% if alert %><p class="flash alert"><%= alert %></p><% end %>
+<% if notice %><p class="flash notice"><%= notice %></p><% end %>
+<%= form_for(resource, as: resource_name, url: session_path(resource_name), html: { class: "stack card" }) do |f| %>
+  <div class="field"><%= f.label :email %><%= f.email_field :email, autofocus: true, autocomplete: "username", required: true %></div>
+  <div class="field"><%= f.label :password %><%= f.password_field :password, autocomplete: "current-password", required: true %></div>
+  <div class="choices"><label><%= f.check_box :remember_me %> Keep me signed in on this computer</label></div>
+  <%= f.submit "Sign in", class: "primary" %>
+<% end %>
+<p><%= link_to "Forgot your password?", new_password_path(resource_name) %></p>
+<p class="small muted">Fellows: you'll use this same email and password in the Sondage app for your interview.</p>

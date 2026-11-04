@@ -1,0 +1,52 @@
+body.room-page { min-height: 100vh; }
+.room-bar { display: flex; align-items: center; gap: 24px; padding: 14px 28px; border-bottom: 1px solid var(--rule); }
+.room-bar .wordmark { font-size: 24px; }
+.room-title { font-family: var(--serif); font-size: 19px; }
+.room-key { margin-left: auto; }
+.room-check, .room-done { padding: 48px 28px; }
+.narrow { max-width: 900px; margin: 0 auto; }
+.meter { height: 12px; background: var(--paper-2); border-radius: 99px; overflow: hidden; }
+#meter { height: 100%; width: 0; background: var(--good); transition: width 80ms linear; }
+#preview { width: 100%; border-radius: 8px; background: #000; }
+ul.checks { list-style: none; padding: 0; margin: 0 0 16px; }
+ul.checks li { padding: 9px 0; border-bottom: 1px solid var(--rule); display: flex; gap: 10px; }
+ul.checks li::before { content: "✓"; color: var(--good); font-weight: 700; width: 16px; }
+ul.checks li.bad::before { content: "!"; color: var(--accent); }
+ul.checks li.unknown::before { content: "?"; color: #8a5a12; }
+
+.room-live { display: grid; grid-template-columns: 1fr 360px; height: calc(100vh - 61px); }
+.stage { position: relative; background: #12110f; display: grid; place-items: center; overflow: hidden; }
+.tile { margin: 0; position: relative; }
+.tile figcaption { position: absolute; left: 14px; bottom: 12px; color: #fff; font-size: 14px; background: rgba(0,0,0,.45); padding: 4px 10px; border-radius: 6px; }
+.tile.remote { width: 100%; height: 100%; display: grid; place-items: center; }
+.tile.remote video { width: 100%; height: 100%; object-fit: contain; }
+.tile.local { position: absolute; right: 20px; bottom: 20px; width: 220px; aspect-ratio: 16/9; border-radius: 10px; overflow: hidden; border: 2px solid rgba(255,255,255,.25); background: #222; }
+.tile.local video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+.stage.audio-only .tile video { visibility: hidden; }
+.stage.audio-only .tile.remote figcaption { position: static; font-family: var(--serif); font-size: 30px; background: none; }
+.console { padding: 24px; border-left: 1px solid var(--rule); display: flex; flex-direction: column; gap: 12px; overflow: auto; }
+.status-line { display: flex; align-items: center; gap: 10px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
+.dot.live { background: var(--good); } .dot.bad { background: var(--accent); }
+.rec-state { font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.rec-state.on { color: var(--accent); }
+.rec-state.on::before { content: "● "; animation: pulse 1.6s infinite; }
+@keyframes pulse { 50% { opacity: .3; } }
+.timer { font-family: var(--serif); font-size: 52px; line-height: 1; font-variant-numeric: tabular-nums; }
+.console details summary { cursor: pointer; margin: 12px 0 6px; }
+.notes { font-family: var(--serif); font-size: 17px; line-height: 1.5; }
+.mini-timeline { padding-left: 18px; font-size: 14px; } .mini-timeline ul { padding-left: 16px; color: var(--ink-2); }
+.sign-dialog { position: fixed; inset: 0; background: rgba(28,26,23,.45); display: grid; place-items: center; z-index: 10; }
+.sign-dialog .card { max-width: 560px; }
+@media (max-width: 900px) { .room-live { grid-template-columns: 1fr; height: auto; } .stage { height: 60vh; } }
+
+.rec-controls { display: grid; gap: 10px; margin: 6px 0; }
+.rec-controls button { font-size: 17px; padding: 14px 18px; }
+button.danger { background: var(--accent); border-color: var(--accent); color: #fff; }
+.voice-card { display: none; position: relative; width: 220px; height: 220px; place-items: center; }
+.voice-card .ring { position: absolute; inset: 0; border-radius: 50%; background: rgba(120,180,110,.35); transition: transform 90ms linear; }
+.voice-card .initials { position: relative; width: 180px; height: 180px; border-radius: 50%; background: #e9e2d3; color: #1d1b17; display: grid; place-items: center; font: 400 64px var(--serif); }
+.stage.audio-only .voice-card { display: grid; }
+.stage.audio-only .tile.remote { grid-template-rows: auto auto; align-content: center; gap: 22px; }
+.stage.audio-only .tile.remote figcaption { text-align: center; }
+.stage.audio-only .tile.local { display: none; }

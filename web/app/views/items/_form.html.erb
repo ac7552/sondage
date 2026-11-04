@@ -1,0 +1,50 @@
+<%= error_summary(item) %>
+<%= form_with model: [@fellow, item], class: "stack", html: { multipart: true } do |f| %>
+  <div class="row">
+    <div class="field"><%= f.label :kind, "What is it?" %><%= f.select :kind, Item::KINDS.map { |k| [kind_label(k), k] }, {}, id: "item-kind" %></div>
+    <div class="field"><%= f.label :source, "Where it comes from" %><%= f.select :source, [["From #{@fellow.display_name.split.first}'s own life", "own"], ["Added for context (sets the scene)", "context"]] %></div>
+  </div>
+  <p class="hint small">Context items, such as a headline from that week or a song that was everywhere, are always labelled as added for context, with your name.</p>
+  <div class="field"><%= f.label :title %><%= f.text_field :title, required: true %></div>
+  <div class="row">
+    <div class="field"><%= f.label :year %><%= f.number_field :year, in: 1850..Date.current.year %></div>
+    <div class="field"><%= f.label :date_text, "Or in your words" %><%= f.text_field :date_text %></div>
+    <div class="field"><%= f.label :event_id, "Belongs with event" %><%= f.select :event_id, @fellow.events.map { |e| ["#{e.year} · #{e.title}", e.id] }, include_blank: "—" %></div>
+  </div>
+  <div class="field" data-kinds="photo letter document article"><%= f.label :file, "Scan or photo (image or PDF, kept exactly as uploaded)" %><%= f.file_field :file, accept: "image/*,application/pdf" %></div>
+  <div class="field"><%= f.label :caption, "Caption or why it matters" %><%= f.text_area :caption, rows: 4 %></div>
+  <fieldset data-kinds="song article document letter photo">
+    <legend>Citation</legend>
+    <p class="hint small">Songs and articles are linked and cited, not copied. Write the details so the reference still makes sense if a link stops working.</p>
+    <div class="stack" style="max-width:none">
+      <div class="row">
+        <div class="field"><%= f.label :creator, "Artist, author or photographer" %><%= f.text_field :creator %></div>
+        <div class="field"><%= f.label :publication, "Album, newspaper or archive" %><%= f.text_field :publication %></div>
+      </div>
+      <div class="field"><%= f.label :url, "Link (streaming, article, archive record)" %><%= f.url_field :url %></div>
+      <div class="field" data-kinds="article document"><%= f.label :archive_url, "Archived copy (e.g. a Wayback Machine snapshot)" %><%= f.url_field :archive_url %></div>
+      <div class="field" data-kinds="song"><%= f.label :isrc, "Recording code (ISRC), if known" %><%= f.text_field :isrc %></div>
+    </div>
+  </fieldset>
+  <fieldset data-kinds="place">
+    <legend>Place</legend>
+    <div class="stack" style="max-width:none">
+      <div class="field"><%= f.label :place_name, "Address or name" %><%= f.text_field :place_name %></div>
+      <div class="row">
+        <div class="field"><%= f.label :latitude %><%= f.number_field :latitude, step: "any" %></div>
+        <div class="field"><%= f.label :longitude %><%= f.number_field :longitude, step: "any" %></div>
+      </div>
+    </div>
+  </fieldset>
+  <div class="actions"><%= f.submit "Save", class: "primary" %><%= link_to "Cancel", fellow_timeline_path(@fellow), class: "link" %>
+    <% if item.persisted? %><%= link_to "Remove this item", fellow_item_path(@fellow, item), data: { method: :delete }, class: "link js-delete" %><% end %></div>
+<% end %>
+<script>
+  // Show only the fields that fit the kind of item.
+  (() => {
+    const sel = document.getElementById("item-kind");
+    const sync = () => document.querySelectorAll("[data-kinds]").forEach((el) => (el.hidden = !el.dataset.kinds.split(" ").includes(sel.value)));
+    sel.addEventListener("change", sync);
+    sync();
+  })();
+</script>

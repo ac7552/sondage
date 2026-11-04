@@ -1,0 +1,21 @@
+#!/usr/bin/env ruby
+require "fileutils"
+
+APP_ROOT = File.expand_path("..", __dir__)
+
+def system!(*args)
+  system(*args, exception: true)
+end
+
+FileUtils.chdir APP_ROOT do
+  puts "== Installing gems =="
+  system("bundle check") || system!("bundle install")
+
+  puts "\n== Preparing database (with demo data) =="
+  system! "bin/rails db:prepare" # creates the database and loads the demo data on first run
+
+  puts "\n== Removing old logs and tempfiles =="
+  system! "bin/rails log:clear tmp:clear"
+
+  puts "\n== Done. Start the server with: bin/rails server =="
+end
