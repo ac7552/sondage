@@ -373,6 +373,13 @@ async function loadHome() {
 
   const prompt = f.next_journal_prompt;
   const waiting = f.journal_prompts_waiting || 0;
+  // The newest page, so the notebook on the home screen shows what's in it.
+  const last = f.last_journal_entry;
+  const lastPage = last && (last.body || last.voice)
+    ? `<div class="mini-last">
+         <p class="mini-date">Your last page · ${esc(longDate(last.written_on + "T12:00:00"))}</p>
+         ${last.body ? `<p class="mini-words">${markedToHtml(last.body)}</p>` : `<p class="mini-words">A voice note.</p>`}
+       </div>` : "";
   const tiles = `
     <div class="home-tiles">
       <article class="home-tile">
@@ -389,6 +396,7 @@ async function loadHome() {
           ${prompt
             ? `<p class="mini-question">“${esc(prompt.text)}”</p><p class="small">From ${esc(callName(prompt.from))}</p>`
             : `<h3>Write down a memory whenever it comes to you.</h3>`}
+          ${lastPage}
           <button ${prompt ? 'class="primary"' : ""} data-go="journal">Open my journal</button>
         </div>
       </article>

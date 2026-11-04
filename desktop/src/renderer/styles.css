@@ -615,3 +615,29 @@ button.wide { width: 100%; }
 .journal-page .notebook { min-height: max(900px, calc(100vh - 120px)); margin-bottom: 24px; }
 .editor { min-height: calc(var(--line) * 14); }
 @media (max-width: 1000px) { #view-journal .journal-layout { grid-template-columns: 1fr; } .journal-panel { position: static; } }
+
+/* ================================================================ Home: small life story, tall notebook
+   More room between the pieces. The life story is a small card, like a photo print;
+   the journal's notebook takes the rest of the row and shows the newest page. */
+.home-head { margin: 0 0 88px; }
+.feature { margin-bottom: 64px; }
+.home-tiles { grid-template-columns: 280px minmax(0, 1fr); gap: 72px; align-items: start; }
+.home-tile:not(.notebook-mini) { flex-direction: column; }
+.home-tile:not(.notebook-mini) .home-tile-photo { width: auto; height: 150px; }
+.home-tile:not(.notebook-mini) .home-tile-body { padding: 24px 26px 26px; }
+.home-tile:not(.notebook-mini) .home-tile-body .label { margin-bottom: 8px; }
+.home-tile:not(.notebook-mini) .home-tile-body h3 { font-size: 21px; margin: 0 0 18px; }
+.home-tile:not(.notebook-mini) .home-tile-body button { min-height: 44px; font-size: 15px; padding: 8px 18px; }
+.notebook-mini { min-height: 600px; display: flex; }
+.notebook-mini .home-tile-body { display: flex; flex-direction: column; flex: 1; padding: 40px 48px 44px 76px; }
+.notebook-mini .home-tile-body > button { margin-top: auto; align-self: flex-start; }
+.mini-last { margin: 32px 0 40px; }
+.mini-date { font: 600 13px/40px var(--sans); letter-spacing: .16em; text-transform: uppercase; color: #8a6d4a; margin: 0; }
+.mini-words { font: 500 24px/40px var(--serif); color: #232a38; margin: 0; white-space: pre-wrap;
+  display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
+@media (max-width: 1000px) {
+  .home-tiles { grid-template-columns: 1fr; gap: 48px; }
+  .home-tile:not(.notebook-mini) { flex-direction: row; }
+  .home-tile:not(.notebook-mini) .home-tile-photo { width: 150px; height: auto; }
+  .notebook-mini { min-height: 480px; }
+}

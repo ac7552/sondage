@@ -12,7 +12,9 @@ class Api::V1::MeController < Api::V1::BaseController
         historian: fellow.historian&.name,
         journal_prompts_waiting: fellow.journal_prompts.waiting.count,
         next_journal_prompt: fellow.journal_prompts.waiting.includes(:author).first&.then { |p| { text: p.text, from: p.author.name } },
-        journal_entries_count: fellow.journal_entries.count
+        journal_entries_count: fellow.journal_entries.count,
+        # The newest page, for the notebook on the home screen. Only ever sent to the Fellow.
+        last_journal_entry: fellow.journal_entries.newest_first.first&.then { |e| { written_on: e.written_on.iso8601, body: e.body.to_s.first(600), voice: e.voice.attached? } }
       },
       interviews: interviews.map { |m|
         {
