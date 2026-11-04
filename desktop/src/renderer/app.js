@@ -30,7 +30,7 @@ function show(name) {
   $$(".view").forEach((v) => (v.hidden = v.id !== `view-${name}`));
   document.body.dataset.view = name;
   // The current page is shown in [ brackets ] in the top bar.
-  const section = { listen: "vault", write: "journal" }[name] || name;
+  const section = { listen: "vault" }[name] || name;
   $$("#nav [data-go]").forEach((b) => b.classList.toggle("active", b.dataset.go === section || (section === "heir" && b.dataset.go === "home")));
   $("#nav").hidden = !["home", "vault", "settings", "listen", "story", "journal", "historians", "heir"].includes(name);
   window.scrollTo(0, 0);
@@ -324,7 +324,7 @@ async function loadHome() {
         <div class="feature-text">
           ${d ? `<div class="cal" aria-hidden="true"><span class="m">${esc(d.toLocaleDateString(undefined, { month: "short" }))}</span><span class="d">${d.getDate()}</span><span class="w">${esc(d.toLocaleDateString(undefined, { weekday: "short" }))}</span></div>` : ""}
           <div>
-            <p class="label"><span class="n">[01]</span>Your interview${next.parts > 1 ? `, part ${next.part} of ${next.parts}` : ""}</p>
+            <p class="label">Your interview${next.parts > 1 ? `, part ${next.part} of ${next.parts}` : ""}</p>
             <p class="when">${d ? `${esc(dayWord(d))} at ${esc(longTime(next.scheduled_at))}` : "Soon"}</p>
             <p class="with">with ${esc(next.historian?.name || "your interviewer")}. ${next.media_type === "video" ? "You will see and hear each other." : "You will hear each other. No camera."}</p>
             <button class="primary" data-join="${next.id}">Start my interview</button>
@@ -374,14 +374,14 @@ async function loadHome() {
       <article class="home-tile">
         <div class="home-tile-photo" style="background-image: url(photos/family-outdoors.jpg)"></div>
         <div class="home-tile-body">
-          <p class="label"><span class="n">[02]</span>My life story</p>
+          <p class="label">My life story</p>
           <h3>Your photos, songs and memories, in order.</h3>
           <button data-go="story">Open my life story</button>
         </div>
       </article>
       <article class="home-tile notebook-mini">
         <div class="home-tile-body">
-          <p class="label"><span class="n">[03]</span>My journal</p>
+          <p class="label">My journal</p>
           ${prompt
             ? `<p class="mini-question">“${esc(prompt.text)}”</p><p class="small">From ${esc(callName(prompt.from))}</p>`
             : `<h3>Write down a memory whenever it comes to you.</h3>`}
@@ -1033,51 +1033,103 @@ boot().catch((e) => {
 });
 
 // ---------------------------------------------------------------- my journal
-// Private by default. Unlike the sealed interview, entries can be changed or deleted.
+// Private by default. Unlike the sealed interview, entries can be changed or deleted,
+// and every change keeps the earlier words as a version. Words can be highlighted
+// (==like this==) or crossed out (~~like this~~), the way you would on paper.
 
-const journal = { data: null, editing: null, prompt: null, voice: null, removeVoice: false, rec: null, urls: [] };
+const journal = { data: null, selected: null, editing: null, writing: false, prompt: null, voice: null, removeVoice: false, rec: null, urls: [] };
 
 function freeJournalUrls() {
   journal.urls.forEach((u) => URL.revokeObjectURL(u));
   journal.urls = [];
 }
 
-async function loadJournal() {
+// ==highlight== and ~~cross out~~ <-> what the page shows
+function markedToHtml(text) {
+  return esc(text || "")
+    .replace(/==([\s\S]+?)==/g, "<mark>$1</mark>")
+    .replace(/~~([\s\S]+?)~~/g, "<s>$1</s>")
+    .replace(/\n/g, "<br>");
+}
+function htmlToMarked(root) {
+  const walk = (node) => {
+    let out = "";
+    node.childNodes.forEach((n, i) => {
+      if (n.nodeType === Node.TEXT_NODE) return (out += n.nodeValue);
+      if (n.nodeType !== Node.ELEMENT_NODE) return;
+      const tag = n.tagName;
+      if (tag === "BR") return (out += "\n");
+      let inner = walk(n);
+      const bg = n.style?.backgroundColor;
+      const highlighted = tag === "MARK" || (bg && bg !== "transparent" && !/rgba\(0, 0, 0, 0\)/.test(bg));
+      const crossed = tag === "S" || tag === "STRIKE" || tag === "DEL" || /line-through/.test(n.style?.textDecoration || n.style?.textDecorationLine || "");
+      if (crossed && inner.trim()) inner = `~~${inner}~~`;
+      if (highlighted && inner.trim()) inner = `==${inner}==`;
+      if ((tag === "DIV" || tag === "P") && i > 0 && !out.endsWith("\n")) out += "\n";
+      out += inner;
+    });
+    return out;
+  };
+  return walk(root).replace(/====/g, "").replace(/~~~~/g, "").replace(/ /g, " ").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+async function loadJournal(selectId) {
   show("journal");
+  stopVoice();
   freeJournalUrls();
-  $("#journal-entries").innerHTML = `<p class="small">Loading…</p>`;
+  journal.writing = false;
+  $("#panel-read").hidden = false;
+  $("#write-form").hidden = true;
   try {
     journal.data = await S.api("GET", "/api/v1/journal");
   } catch {
-    $("#journal-prompts").innerHTML = "";
-    $("#journal-entries").innerHTML = `<p class="problem">We can't open your journal right now. Check that the internet is on.</p>`;
+    $("#journal-sheet").innerHTML = `<p class="problem">We can't open your journal right now. Check that the internet is on.</p>`;
     return;
   }
   const { prompts, entries } = journal.data;
-  // Questions from the historian look like notes stuck to the page.
+  journal.selected = entries.find((e) => e.id === selectId) || entries.find((e) => e.id === journal.selected?.id) || entries[0] || null;
+  // The historian's questions: small notes in the side panel.
   $("#journal-prompts").innerHTML = prompts.map((p, i) => `
-    <div class="sticky" style="--tilt: ${i % 2 ? 1.2 : -1.4}deg">
+    <div class="sticky" style="--tilt: ${i % 2 ? 0.8 : -1}deg">
       <p class="sticky-from">A question from ${esc(callName(p.from))}</p>
       <p class="sticky-q">${esc(p.text)}</p>
       <div class="buttons"><button class="primary" data-answer="${p.id}">Write about this</button><button class="quiet" data-dismiss="${p.id}">Not now</button></div>
     </div>`).join("");
-  // Each entry is written on the notebook's lines, newest first.
-  $("#journal-entries").innerHTML = entries.length
+  $("#journal-pages").innerHTML = entries.length
     ? entries.map((e) => `
-      <article class="page-entry">
-        <p class="page-date">${esc(longDate(e.written_on + "T12:00:00"))}${e.era ? ` · ${esc(e.era.title)}` : ""}<span class="${e.shared_with_historian ? "shared" : "private"}">${e.shared_with_historian ? "Shared" : "Only you"}</span></p>
-        ${e.prompt ? `<p class="page-answering">Answering: “${esc(e.prompt.text)}”</p>` : ""}
-        ${e.body ? `<p class="words">${esc(e.body)}</p>` : ""}
-        ${e.voice ? `<button data-play="${e.id}">▶ Listen to my voice</button><div data-audio="${e.id}"></div>` : ""}
-        <div class="buttons page-actions"><button class="quiet" data-edit="${e.id}">Change</button><button class="quiet" data-delete="${e.id}">Delete</button></div>
-      </article>`).join("")
-    : `<p class="words empty-page">This notebook is waiting for you. Press "Write something new" to start.</p>`;
+      <li><button type="button" data-page="${e.id}" class="${e.id === journal.selected?.id ? "on" : ""}">
+        <span class="pg-date">${esc(longDate(e.written_on + "T12:00:00"))}</span>
+        <span class="pg-words">${esc((e.body || "").replace(/==|~~/g, "").slice(0, 64) || "A voice recording")}${(e.body || "").length > 64 ? "…" : ""}</span>
+      </button></li>`).join("")
+    : `<li class="pg-empty">No pages yet.</li>`;
+  showPage(journal.selected);
+}
+
+function showPage(e) {
+  const sheet = $("#journal-sheet");
+  if (!e) {
+    sheet.innerHTML = `<p class="words empty-page">This notebook is waiting for you.<br>Press "Write something new" to start.</p>`;
+    return;
+  }
+  sheet.innerHTML = `
+    <article class="page-entry">
+      <p class="page-date">${esc(longDate(e.written_on + "T12:00:00"))}${e.era ? ` · ${esc(e.era.title)}` : ""}<span class="${e.shared_with_historian ? "shared" : "private"}">${e.shared_with_historian ? "Shared" : "Only you"}</span></p>
+      ${e.prompt ? `<p class="page-answering">Answering: “${esc(e.prompt.text)}”</p>` : ""}
+      ${e.body ? `<p class="words">${markedToHtml(e.body)}</p>` : ""}
+      ${e.voice ? `<button data-play="${e.id}">▶ Listen to my voice</button><div data-audio="${e.id}"></div>` : ""}
+      <div class="page-actions"><button class="quiet" data-edit="${e.id}">Change this page</button><button class="quiet" data-delete="${e.id}">Delete</button>${e.versions_count ? `<span class="small muted">${e.versions_count} earlier version${e.versions_count === 1 ? "" : "s"} kept</span>` : ""}</div>
+    </article>`;
 }
 
 $("#view-journal").addEventListener("click", async (ev) => {
   const t = ev.target.closest("button");
-  if (!t) return;
+  if (!t || t.closest("#write-form")) return;
   if (t.id === "journal-new") return openWrite(null, null);
+  if (t.dataset.page) {
+    journal.selected = journal.data.entries.find((e) => String(e.id) === t.dataset.page);
+    $$("#journal-pages button").forEach((b) => b.classList.toggle("on", b === t));
+    return showPage(journal.selected);
+  }
   if (t.dataset.answer) return openWrite(null, journal.data.prompts.find((p) => String(p.id) === t.dataset.answer));
   if (t.dataset.dismiss) {
     await S.api("POST", `/api/v1/journal/prompts/${t.dataset.dismiss}/dismiss`).catch(() => {});
@@ -1085,8 +1137,9 @@ $("#view-journal").addEventListener("click", async (ev) => {
   }
   if (t.dataset.edit) return openWrite(journal.data.entries.find((e) => String(e.id) === t.dataset.edit), null);
   if (t.dataset.delete) {
-    if (!confirm("Delete this from your journal?\n\nThis can't be undone.")) return;
+    if (!confirm("Delete this page from your journal?\n\nThis can't be undone.")) return;
     await S.api("DELETE", `/api/v1/journal/${t.dataset.delete}`);
+    journal.selected = null;
     return loadJournal();
   }
   if (t.dataset.play) {
@@ -1096,8 +1149,7 @@ $("#view-journal").addEventListener("click", async (ev) => {
       const { type, bytes } = await S.apiBytes(`/api/v1/journal/${t.dataset.play}/voice`);
       const url = URL.createObjectURL(new Blob([bytes], { type }));
       journal.urls.push(url);
-      const box = $(`[data-audio="${t.dataset.play}"]`);
-      box.innerHTML = `<audio controls autoplay src="${url}"></audio>`;
+      $(`[data-audio="${t.dataset.play}"]`).innerHTML = `<audio controls autoplay src="${url}"></audio>`;
       t.remove();
     } catch {
       t.disabled = false;
@@ -1107,18 +1159,25 @@ $("#view-journal").addEventListener("click", async (ev) => {
   }
 });
 
-function openWrite(entry, prompt) {
-  show("write");
+async function openWrite(entry, prompt) {
+  if ($("#view-journal").hidden) show("journal");
   stopVoice();
+  journal.writing = true;
   journal.editing = entry;
   journal.prompt = prompt || (entry?.prompt ? { id: entry.prompt.id, text: entry.prompt.text } : null);
   journal.voice = null;
   journal.removeVoice = false;
-  $("#write-title").textContent = entry ? "Change this entry" : prompt ? "Write about this" : "Write something new";
-  $("#write-prompt").hidden = !journal.prompt;
-  $("#write-prompt").innerHTML = journal.prompt ? `“${esc(journal.prompt.text)}”${prompt?.from ? `<span class="from">From ${esc(prompt.from)}</span>` : ""}` : "";
-  $("#write-body").value = entry?.body || "";
-  $("#write-date").textContent = longDate((entry?.written_on ? entry.written_on + "T12:00:00" : new Date().toISOString()));
+  journal.versions = [];
+  $("#panel-read").hidden = true;
+  $("#write-form").hidden = false;
+  const date = longDate(entry?.written_on ? entry.written_on + "T12:00:00" : new Date().toISOString());
+  $("#journal-sheet").innerHTML = `
+    <div class="write-page">
+      <p class="page-date">${esc(date)}${entry ? " · changing this page" : ""}</p>
+      ${journal.prompt ? `<p class="page-answering">Answering: “${esc(journal.prompt.text)}”${prompt?.from ? ` · ${esc(callName(prompt.from))}` : ""}</p>` : ""}
+      <div class="ruled editor" id="write-body" contenteditable="true" role="textbox" aria-multiline="true" aria-label="What would you like to say?" data-placeholder="Start anywhere. A smell, a song, a name…"></div>
+    </div>`;
+  $("#write-body").innerHTML = markedToHtml(entry?.body || "");
   const eras = journal.data?.eras || [];
   $("#write-era").innerHTML = `<option value="">Not sure, or about today</option>` + eras.map((e) => `<option value="${e.id}">${esc(e.title)} (${e.start_year}–${e.end_year || "now"})</option>`).join("");
   $("#write-era").value = entry?.era?.id || "";
@@ -1128,8 +1187,56 @@ function openWrite(entry, prompt) {
   $("#write-share").checked = entry ? entry.shared_with_historian : !!prompt;
   $("#write-error").hidden = true;
   voiceUi(entry?.voice ? "existing" : "idle");
+  $("#versions-box").hidden = true;
   $("#write-body").focus();
+  if (entry?.versions_count) {
+    try {
+      journal.versions = (await S.api("GET", `/api/v1/journal/${entry.id}/versions`)).versions;
+      $("#versions-list").innerHTML = journal.versions.map((v) => `
+        <li><span class="v-when">Until ${esc(longDate(v.written_until))}, ${esc(longTime(v.written_until))}</span>
+          <span class="v-words">${markedToHtml((v.body || "").slice(0, 140))}${(v.body || "").length > 140 ? "…" : ""}</span>
+          <button type="button" class="tool-plain" data-restore="${v.id}">Use these words again</button></li>`).join("");
+      $("#versions-box").hidden = false;
+    } catch {}
+  }
 }
+
+// Highlight and cross out: the buttons act on the words chosen in the page.
+function markSelection(kind) {
+  const editor = $("#write-body");
+  const sel = getSelection();
+  if (!editor || !sel.rangeCount || sel.isCollapsed || !editor.contains(sel.anchorNode)) {
+    $("#write-error").textContent = "First choose some words on the page with the mouse.";
+    $("#write-error").hidden = false;
+    return;
+  }
+  $("#write-error").hidden = true;
+  if (kind === "highlight") {
+    const on = document.queryCommandValue("hiliteColor");
+    const already = on && !/transparent|rgba\(0, 0, 0, 0\)/.test(on);
+    document.execCommand("styleWithCSS", false, true);
+    document.execCommand("hiliteColor", false, already ? "transparent" : "#fff1a0");
+  } else if (kind === "strike") {
+    document.execCommand("styleWithCSS", false, false);
+    document.execCommand("strikeThrough");
+  } else {
+    document.execCommand("removeFormat");
+    document.execCommand("hiliteColor", false, "transparent");
+  }
+}
+for (const [id, kind] of [["#tool-highlight", "highlight"], ["#tool-strike", "strike"], ["#tool-clear", "clear"]]) {
+  $(id).addEventListener("mousedown", (e) => e.preventDefault()); // keep the chosen words chosen
+  $(id).addEventListener("click", () => markSelection(kind));
+}
+document.addEventListener("paste", (e) => {
+  if (e.target.closest?.("#write-body")) { e.preventDefault(); document.execCommand("insertText", false, e.clipboardData.getData("text/plain")); }
+});
+$("#view-journal").addEventListener("click", (ev) => {
+  const t = ev.target.closest("#write-form [data-restore]");
+  if (!t) return;
+  const v = journal.versions?.find((x) => String(x.id) === t.dataset.restore);
+  if (v) { $("#write-body").innerHTML = markedToHtml(v.body); $("#write-body").focus(); }
+});
 
 function voiceUi(mode) {
   $("#voice-idle").hidden = !(mode === "idle");
@@ -1188,9 +1295,7 @@ $("#voice-remove").addEventListener("click", () => {
   journal.removeVoice = !!journal.editing?.voice;
   voiceUi("idle");
 });
-const leaveWrite = () => { stopVoice(); loadJournal(); };
-$("#write-back").addEventListener("click", leaveWrite);
-$("#write-cancel").addEventListener("click", leaveWrite);
+$("#write-cancel").addEventListener("click", () => { stopVoice(); loadJournal(); });
 
 const toBase64 = async (blob) => {
   const bytes = new Uint8Array(await blob.arrayBuffer());
@@ -1202,7 +1307,7 @@ const toBase64 = async (blob) => {
 $("#write-form").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   if (journal.rec) await stopVoice(true);
-  const body = $("#write-body").value.trim();
+  const body = htmlToMarked($("#write-body"));
   const keepsVoice = journal.voice || (journal.editing?.voice && !journal.removeVoice);
   if (!body && !keepsVoice) {
     $("#write-error").textContent = "Write something, or record your voice, first.";
@@ -1214,10 +1319,11 @@ $("#write-form").addEventListener("submit", async (ev) => {
   try {
     const entry = { body, era_id: $("#write-era").value || null, shared_with_historian: $("#write-share").checked, journal_prompt_id: journal.prompt?.id || null };
     if (journal.voice) entry.voice = { base64: await toBase64(journal.voice), content_type: journal.voice.type };
-    if (journal.editing) await S.api("PATCH", `/api/v1/journal/${journal.editing.id}`, { entry, remove_voice: journal.removeVoice || undefined });
-    else await S.api("POST", "/api/v1/journal", { entry });
+    const saved = journal.editing
+      ? await S.api("PATCH", `/api/v1/journal/${journal.editing.id}`, { entry, remove_voice: journal.removeVoice || undefined })
+      : await S.api("POST", "/api/v1/journal", { entry });
     journal.voice = null;
-    await loadJournal();
+    await loadJournal(saved?.id);
   } catch (ex) {
     $("#write-error").textContent = `We couldn't save it: ${ex.message} Nothing is lost. Try again in a moment.`;
     $("#write-error").hidden = false;

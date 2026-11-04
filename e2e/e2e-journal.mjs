@@ -57,17 +57,17 @@ await shot(win, "2-journal");
 step(`journal open with ${await win.locator(".sticky").count()} questions waiting`);
 
 await win.click(".sticky [data-answer]");
-await win.waitForSelector("#view-write:not([hidden])");
+await win.waitForSelector("#write-form:not([hidden])");
 if (!(await win.isChecked("#write-share"))) fail("answering the historian's question should default to sharing");
 await win.fill("#write-body", "Arroz con gandules, always, and pernil if Papi had been paid.");
 await win.selectOption("#write-era", { label: /Childhood in Ponce/ }).catch(async () => win.selectOption("#write-era", { index: 1 }));
 await shot(win, "3-answer");
 await win.click("#write-save");
-await win.waitForSelector("#view-journal:not([hidden]) .page-entry");
+await win.waitForSelector("#panel-read:not([hidden])"); await win.waitForSelector("#journal-sheet .page-entry");
 step(`answered a question; questions still waiting: ${await win.locator(".sticky").count()}`);
 
 await win.click("#journal-new");
-await win.waitForSelector("#view-write:not([hidden])");
+await win.waitForSelector("#write-form:not([hidden])");
 if (await win.isChecked("#write-share")) fail("a new entry should be private by default");
 await win.fill("#write-body", "I found Luis's old bakery apron today.");
 await win.click("#voice-start");
@@ -80,40 +80,59 @@ const previewOk = await win.$eval("#voice-preview", (a) => !!a.src);
 step(`voice recorded (preview ready: ${previewOk})`);
 await shot(win, "5-voice-done");
 await win.click("#write-save");
-await win.waitForSelector("#view-journal:not([hidden]) [data-play]");
+await win.waitForSelector("#journal-sheet [data-play]");
 await shot(win, "6-entries");
-const tags = await win.$$eval(".page-entry .page-date span", (els) => els.map((e) => e.textContent));
-step("entries: " + tags.join(" | "));
+step("pages: " + (await win.$$eval("#journal-pages .pg-words", (els) => els.map((e) => e.textContent))).join(" | "));
 
-await win.click(".page-entry [data-play]");
-await win.waitForSelector(".page-entry audio");
+await win.click("#journal-sheet [data-play]");
+await win.waitForSelector("#journal-sheet audio");
 await win.waitForTimeout(1500);
-const played = await win.$eval(".page-entry audio", (a) => ({ t: a.currentTime, d: a.duration, err: a.error?.code || null }));
+const played = await win.$eval("#journal-sheet audio", (a) => ({ t: a.currentTime, err: a.error?.code || null }));
 step(`played the voice note back: ${played.t.toFixed(1)}s played${played.err ? `, error ${played.err}` : ""}`);
 if (played.err) fail("voice note didn't play");
 
-// change the private entry
-await win.click(".page-entry:first-child [data-edit]");
-await win.waitForSelector("#view-write:not([hidden])");
-await win.fill("#write-body", "I found Luis's old bakery apron today. It still smells a little like anise.");
+// change the private entry: add words, highlight some and cross some out
+await win.click("#journal-sheet [data-edit]");
+await win.waitForSelector("#write-form:not([hidden])");
+await win.fill("#write-body", "I found Luis's old bakery apron today. It still smells a little like anise. I washed it.");
+const choose = (word) => win.evaluate((w) => {
+  const el = document.getElementById("write-body");
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  let n;
+  while ((n = walker.nextNode())) {
+    const i = n.nodeValue.indexOf(w);
+    if (i >= 0) { const r = document.createRange(); r.setStart(n, i); r.setEnd(n, i + w.length); const s = getSelection(); s.removeAllRanges(); s.addRange(r); return true; }
+  }
+  return false;
+}, word);
+await choose("like anise");
+await win.click("#tool-highlight");
+await choose("I washed it.");
+await win.click("#tool-strike");
+await shot(win, "6b-marks");
 await win.click("#write-save");
-await win.waitForSelector("#view-journal:not([hidden]) .page-entry");
-if (!/anise/.test(await win.textContent("#journal-entries"))) fail("change wasn't saved");
-step("changed an entry");
+await win.waitForSelector("#panel-read:not([hidden])"); await win.waitForSelector("#journal-sheet mark");
+const marks = await win.$eval("#journal-sheet .words", (el) => ({ mark: el.querySelector("mark")?.textContent, s: el.querySelector("s")?.textContent }));
+step(`highlighted "${marks.mark}", crossed out "${marks.s}"`);
+if (!marks.mark || !marks.s) fail("marks weren't saved");
+step("version note: " + (await win.textContent("#journal-sheet .page-actions .small")));
+await win.click("#journal-sheet [data-edit]");
+await win.waitForSelector("#versions-box:not([hidden]) .versions-list li");
+step("earlier version: " + (await win.textContent("#versions-list .v-words")));
+await shot(win, "6c-versions");
+await win.click("#write-cancel");
+await win.waitForSelector("#panel-read:not([hidden])");
 
-// set the other question aside, then delete an entry
+// set the other question aside, then delete a page
 await win.click(".sticky [data-dismiss]");
 await win.waitForFunction(() => document.querySelectorAll(".sticky").length === 0);
 step("set the second question aside");
-const before = await win.locator(".page-entry").count();
-await win.click(".page-entry:last-child [data-delete]");
-await win.waitForFunction((n) => document.querySelectorAll(".page-entry").length === n - 1, before);
-step(`deleted an entry (${before} → ${before - 1})`);
+const before = await win.locator("#journal-pages li").count();
+await win.click("#journal-pages li:last-child button");
+await win.click("#journal-sheet [data-delete]");
+await win.waitForFunction((n) => document.querySelectorAll("#journal-pages li button").length === n - 1, before);
+step(`deleted a page (${before} → ${before - 1})`);
 await shot(win, "7-after-delete");
-await win.evaluate(() => document.querySelector("#journal-entries").scrollIntoView());
-await win.waitForTimeout(300);
-await shot(win, "7b-notebook");
-await win.evaluate(() => scrollTo(0, 0));
 
 // ---------------------------------------------------------------- choosing a historian
 await win.click('#nav [data-go="home"]');

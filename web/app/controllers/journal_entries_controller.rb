@@ -8,7 +8,7 @@ class JournalEntriesController < ApplicationController
 
   def index
     @owner = owner?
-    @entries = JournalEntry.readable_by(current_user, @fellow).newest_first.includes(:era, :journal_prompt, voice_attachment: :blob)
+    @entries = JournalEntry.readable_by(current_user, @fellow).newest_first.includes(:era, :journal_prompt, :versions, voice_attachment: :blob)
     @prompts = @owner ? @fellow.journal_prompts.waiting.includes(:author) : @fellow.journal_prompts.includes(:author, :journal_entries)
     @entry = @fellow.journal_entries.build(written_on: Date.current, journal_prompt_id: params[:prompt]) if @owner
   end

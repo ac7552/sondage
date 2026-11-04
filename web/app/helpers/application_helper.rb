@@ -1,4 +1,12 @@
 module ApplicationHelper
+  # Journal words with ==highlights== and ~~crossings out~~, safely escaped.
+  def journal_words(text)
+    html = ERB::Util.html_escape(text.to_s)
+      .gsub(/==(.+?)==/m) { "<mark>#{$1}</mark>" }
+      .gsub(/~~(.+?)~~/m) { "<s>#{$1}</s>" }
+    simple_format(html, {}, sanitize: false)
+  end
+
   # A top-bar link; the page you're on is shown as [ LINK ].
   def nav_link(label, path)
     here = current_page?(path) || (path != root_path && path != match_path && request.path.start_with?("#{path}/"))

@@ -246,3 +246,7 @@ table.list td, table.list th { padding: 18px 14px; }
 .colophon { padding: 96px 56px 88px; }
 .auth-form { padding: 96px 80px; }
 .auth-form .stack { gap: 28px; margin-bottom: 28px; }
+
+.journal-body mark { background: linear-gradient(transparent 12%, #fff1a0 12%, #fff1a0 88%, transparent 88%); color: inherit; padding: 0 2px; }
+.journal-body s { text-decoration-thickness: 2px; color: var(--muted); }
+details.versions { margin-top: 18px; } details.versions .version { border-left: 2px solid var(--rule); padding: 8px 0 8px 18px; margin: 12px 0; }

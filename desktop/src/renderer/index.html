@@ -279,47 +279,60 @@
       </div>
     </section>
 
-    <!-- ============ My journal ============ -->
+    <!-- ============ My journal: tools on the left, the notebook page on the right ============ -->
     <section class="view" id="view-journal" hidden>
-      <div class="page">
-        <header class="journal-head">
-          <div>
-            <h1>My journal</h1>
-            <p class="big">Write down a memory whenever it comes to you, or say it out loud. Only you can read it, unless you choose to share it.</p>
-          </div>
-          <button class="primary" id="journal-new">✎ Write something new</button>
-        </header>
-        <div class="stickies" id="journal-prompts"></div>
-        <div class="notebook" id="journal-entries"></div>
-      </div>
-    </section>
+      <div class="journal-layout">
+        <aside class="journal-panel">
+          <h1>my journal</h1>
+          <p class="panel-lede">Only you can read it, unless you choose to share it.</p>
 
-    <!-- ============ Writing in the journal (one screen) ============ -->
-    <section class="view" id="view-write" hidden>
-      <div class="page">
-        <p class="stepcount"><button class="quiet" id="write-back">← Back to my journal</button></p>
-        <h1 id="write-title">Write something new</h1>
-        <p class="prompt-quote" id="write-prompt" hidden></p>
-        <form id="write-form" class="form notebook write-page">
-          <p class="page-date" id="write-date"></p>
-          <label class="sr">What would you like to say?</label>
-          <textarea name="body" rows="9" id="write-body" class="ruled" placeholder="Start anywhere. A smell, a song, a name…"></textarea>
-          <div class="voice-box" id="voice-box">
-            <p class="voice-label">Or say it out loud</p>
-            <div class="buttons" id="voice-idle"><button type="button" class="record" id="voice-start">● Record my voice</button></div>
-            <div class="buttons" id="voice-live" hidden><span class="voice-timer" id="voice-timer">0:00</span><button type="button" class="primary" id="voice-stop">■ Stop</button></div>
-            <div id="voice-done" hidden>
-              <audio id="voice-preview" controls></audio>
-              <div class="buttons"><button type="button" id="voice-again">Record again</button><button type="button" class="quiet" id="voice-remove">Remove the recording</button></div>
-            </div>
+          <div id="panel-read">
+            <button class="primary wide" id="journal-new">Write something new</button>
+            <div id="journal-prompts" class="panel-notes"></div>
+            <p class="panel-title">My pages</p>
+            <ol class="pages-list" id="journal-pages"></ol>
           </div>
-          <label>Which part of your life is this about? <span class="small">(You can skip this.)</span>
-            <select name="era_id" id="write-era"></select>
-          </label>
-          <label class="tick"><input type="checkbox" name="shared" id="write-share"> <span id="write-share-label">Let my historian read this</span></label>
-          <p class="problem" id="write-error" hidden></p>
-          <div class="buttons"><button type="submit" class="primary" id="write-save">Save in my journal</button><button type="button" class="quiet" id="write-cancel">Cancel</button></div>
-        </form>
+
+          <form id="write-form" class="panel-tools" hidden>
+            <p class="panel-title">Mark your words</p>
+            <p class="panel-hint">Choose words with the mouse, then press a button.</p>
+            <div class="tool-row">
+              <button type="button" class="tool" id="tool-highlight"><span class="hl-swatch">A</span> Highlight</button>
+              <button type="button" class="tool" id="tool-strike"><s>A</s> Cross out</button>
+            </div>
+            <button type="button" class="tool tool-plain" id="tool-clear">Take the marks off</button>
+
+            <p class="panel-title">Say it out loud</p>
+            <div class="voice-box" id="voice-box">
+              <div id="voice-idle"><button type="button" class="record wide" id="voice-start">● Record my voice</button></div>
+              <div id="voice-live" hidden><span class="voice-timer" id="voice-timer">0:00</span><button type="button" class="primary" id="voice-stop">■ Stop</button></div>
+              <div id="voice-done" hidden>
+                <audio id="voice-preview" controls></audio>
+                <button type="button" class="tool-plain" id="voice-again">Record again</button>
+                <button type="button" class="tool-plain" id="voice-remove">Remove the recording</button>
+              </div>
+            </div>
+
+            <p class="panel-title">Part of my life</p>
+            <select name="era_id" id="write-era" aria-label="Which part of your life is this about?"></select>
+
+            <label class="tick"><input type="checkbox" name="shared" id="write-share"> <span id="write-share-label">Let my historian read this</span></label>
+
+            <p class="problem" id="write-error" hidden></p>
+            <button type="submit" class="primary wide" id="write-save">Save in my journal</button>
+            <button type="button" class="quiet wide" id="write-cancel">Cancel</button>
+
+            <div id="versions-box" hidden>
+              <p class="panel-title">Earlier versions</p>
+              <p class="panel-hint">Every time you change this page, the old words are kept here.</p>
+              <ol class="versions-list" id="versions-list"></ol>
+            </div>
+          </form>
+        </aside>
+
+        <div class="journal-page">
+          <div class="notebook" id="journal-sheet"></div>
+        </div>
       </div>
     </section>
 

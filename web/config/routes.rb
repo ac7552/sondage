@@ -75,6 +75,7 @@ Rails.application.routes.draw do
       get "fellow/timeline" => "timelines#show"
       resources :journal, controller: "journal", only: %i[index create update destroy] do
         get :voice, on: :member
+        get :versions, on: :member
         post "prompts/:prompt_id/dismiss" => "journal#dismiss_prompt", on: :collection, as: :dismiss_prompt
       end
       get "historians" => "historians#index"

@@ -56,7 +56,12 @@ const answered = () => new Set(jr.entries.map((e) => e.prompt?.id).filter(Boolea
 const waitingPrompts = () => jr.prompts.filter((p) => !p.dismissed && !answered().has(p.id)).map(({ id, text, from }) => ({ id, text, from }));
 function saveEntry(e, b) {
   const x = b.entry || {};
+  if (x.body !== undefined && e.id && e.body && x.body !== e.body) {
+    e.versions = e.versions || [];
+    e.versions.unshift({ id: Date.now(), body: e.body, written_until: new Date().toISOString() });
+  }
   if (x.body !== undefined) e.body = x.body;
+  e.versions_count = (e.versions || []).length;
   if (x.shared_with_historian !== undefined) e.shared_with_historian = !!x.shared_with_historian;
   if (x.era_id !== undefined) { const era = sample.eras.find((r) => String(r.id) === String(x.era_id)); e.era = era ? { id: era.id, title: era.title } : null; }
   if (x.journal_prompt_id) { const pr = jr.prompts.find((r) => r.id === +x.journal_prompt_id); e.prompt = pr ? { id: pr.id, text: pr.text } : null; }
@@ -129,7 +134,7 @@ const server = http.createServer(async (req, res) => {
   }
   if (p === "/api/v1/fellow/timeline") return json(res, 200, sample);
   if (p === "/api/v1/journal" && req.method === "GET") {
-    return json(res, 200, { entries: [...jr.entries].reverse(), prompts: waitingPrompts(), eras: sample.eras.map(({ id, title, start_year, end_year, startYear, endYear }) => ({ id, title, start_year: start_year ?? startYear, end_year: end_year ?? endYear })), historian: hist.matched?.name || "Dr. Samuel Reyes" });
+    return json(res, 200, { entries: [...jr.entries].reverse().map(({ versions, ...e }) => e), prompts: waitingPrompts(), eras: sample.eras.map(({ id, title, start_year, end_year, startYear, endYear }) => ({ id, title, start_year: start_year ?? startYear, end_year: end_year ?? endYear })), historian: hist.matched?.name || "Dr. Samuel Reyes" });
   }
   if (p === "/api/v1/journal" && req.method === "POST") {
     const e = { id: jr.nextId++, written_on: new Date().toISOString().slice(0, 10), body: "", shared_with_historian: false, era: null, prompt: null, voice: null };
@@ -141,6 +146,10 @@ const server = http.createServer(async (req, res) => {
   }
   let jm, jm2;
   if ((jm = p.match(/^\/api\/v1\/journal\/prompts\/(\d+)\/dismiss$/))) { const pr = jr.prompts.find((r) => r.id === +jm[1]); if (pr) pr.dismissed = true; return json(res, 204, {}); }
+  if ((jm = p.match(/^\/api\/v1\/journal\/(\d+)\/versions$/))) {
+    const e = jr.entries.find((r) => r.id === +jm[1]);
+    return e ? json(res, 200, { versions: e.versions || [] }) : json(res, 404, { error: "Not found" });
+  }
   if ((jm = p.match(/^\/api\/v1\/journal\/(\d+)\/voice$/))) {
     const v = jr.voices.get(+jm[1]);
     if (!v) return json(res, 404, { error: "Not found" });
@@ -153,8 +162,9 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "DELETE") { jr.entries = jr.entries.filter((r) => r !== e); jr.voices.delete(e.id); log(`journal: deleted ${e.id}`); return json(res, 204, {}); }
     const err = saveEntry(e, await body(req));
     if (err) return json(res, 422, { error: err });
-    log(`journal: changed ${e.id}`);
-    return json(res, 200, e);
+    log(`journal: changed ${e.id}: ${JSON.stringify(e.body)} (${e.versions_count} earlier version${e.versions_count === 1 ? "" : "s"} kept)`);
+    const { versions, ...out } = e;
+    return json(res, 200, out);
   }
   if (p === "/api/v1/historians") return json(res, 200, { matched: hist.matched, seeking: hist.seeking, intro: hist.intro, languages: hist.languages, max_choices: 3, historians: hist.list });
   if ((jm = p.match(/^\/api\/v1\/historians\/(\d+)\/choose$/))) {

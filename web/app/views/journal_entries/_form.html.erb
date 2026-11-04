@@ -4,7 +4,8 @@
   <% if entry.journal_prompt %>
     <p class="journal-prompt-quote">“<%= entry.journal_prompt.text %>”<span class="small muted"> — <%= entry.journal_prompt.author.name %></span></p>
   <% end %>
-  <div class="field"><%= f.label :body, "What would you like to write?" %><%= f.text_area :body, rows: 8 %></div>
+  <div class="field"><%= f.label :body, "What would you like to write?" %><%= f.text_area :body, rows: 8 %>
+    <p class="hint small">To highlight words, put them between two equals signs, ==like this==. To cross words out, put them between two tildes, ~~like this~~. Earlier versions are kept.</p></div>
   <div class="row">
     <div class="field"><%= f.label :written_on, "Date" %><%= f.date_field :written_on %></div>
     <div class="field"><%= f.label :era_id, "Which part of your life is it about? (you can skip this)" %><%= f.select :era_id, @fellow.eras.map { |e| ["#{e.title} (#{e.start_year}–#{e.end_year || 'now'})", e.id] }, include_blank: "Not sure / today" %></div>

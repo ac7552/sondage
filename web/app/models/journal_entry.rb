@@ -9,6 +9,9 @@ class JournalEntry < ApplicationRecord
   belongs_to :era, optional: true
   belongs_to :journal_prompt, optional: true
   has_one_attached :voice
+  # Words can be highlighted ==like this== or crossed out ~~like this~~.
+  has_many :versions, -> { order(written_until: :desc) }, class_name: "JournalEntryVersion", dependent: :delete_all
+  after_update :keep_earlier_words, if: :saved_change_to_body?
 
   validates :written_on, presence: true
   validate :has_words_or_voice
@@ -35,11 +38,17 @@ class JournalEntry < ApplicationRecord
       era: era && { id: era.id, title: era.title },
       prompt: journal_prompt && { id: journal_prompt.id, text: journal_prompt.text },
       voice: voice.attached? ? { content_type: voice.content_type, bytes: voice.byte_size } : nil,
+      versions_count: versions.size,
       updated_at: updated_at.iso8601
     }
   end
 
   private
+
+  def keep_earlier_words
+    before = body_before_last_save
+    versions.create!(body: before, written_until: Time.current) if before.present?
+  end
 
   def has_words_or_voice
     errors.add(:base, "Write something or record your voice") if body.blank? && !voice.attached?

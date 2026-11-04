@@ -2,7 +2,7 @@
 # (they're short), and are only ever sent back to the Fellow who recorded them.
 class Api::V1::JournalController < Api::V1::BaseController
   before_action :require_fellow!
-  before_action :set_entry, only: %i[update destroy voice]
+  before_action :set_entry, only: %i[update destroy voice versions]
 
   def index
     render json: {
@@ -40,6 +40,11 @@ class Api::V1::JournalController < Api::V1::BaseController
     return head(:not_found) unless @entry.voice.attached?
     response.headers["Cache-Control"] = "private, no-store"
     send_data @entry.voice.download, type: @entry.voice.content_type, disposition: "inline"
+  end
+
+  # Earlier wordings, newest first. Only the Fellow sees these.
+  def versions
+    render json: { versions: @entry.versions.map(&:as_api_json) }
   end
 
   def dismiss_prompt

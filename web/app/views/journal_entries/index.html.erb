@@ -50,7 +50,14 @@
   <article class="card journal-entry">
     <p class="eyebrow"><%= e.written_on.strftime("%A, %B %-d, %Y") %><% if e.era %> · <%= e.era.title %><% end %><% if @owner %> · <%= e.shared_with_historian ? "Your historian can read this" : "Only you" %><% end %></p>
     <% if e.journal_prompt %><p class="small muted">Answering: “<%= e.journal_prompt.text %>”</p><% end %>
-    <% if e.body.present? %><div class="journal-body"><%= simple_format(e.body) %></div><% end %>
+    <% if e.body.present? %><div class="journal-body"><%= journal_words(e.body) %></div><% end %>
+    <% if @owner && e.versions.any? %>
+      <details class="versions"><summary class="small">Earlier versions (<%= e.versions.size %>)</summary>
+        <% e.versions.each do |v| %>
+          <div class="version"><p class="eyebrow">Until <%= v.written_until.strftime("%B %-d, %Y at %-l:%M %p") %></p><div class="journal-body muted"><%= journal_words(v.body) %></div></div>
+        <% end %>
+      </details>
+    <% end %>
     <% if e.voice.attached? %><audio controls preload="none" src="<%= voice_fellow_journal_entry_path(@fellow, e) %>"></audio><% end %>
     <% if @owner %>
       <div class="actions">

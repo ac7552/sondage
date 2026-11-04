@@ -48,6 +48,16 @@ class JournalAndMatchingTest < ActionDispatch::IntegrationTest
     assert_equal "A new memory", @fellow.journal_entries.order(:id).last.body
   end
 
+  test "changing an entry keeps the earlier words as a version" do
+    headers = api_headers
+    post "/api/v1/journal", params: { entry: { body: "First words" } }, headers: headers, as: :json
+    id = response.parsed_body["id"]
+    patch "/api/v1/journal/#{id}", params: { entry: { body: "First ~~words~~ ==thoughts==" } }, headers: headers, as: :json
+    assert_equal 1, response.parsed_body["versions_count"]
+    get "/api/v1/journal/#{id}/versions", headers: headers
+    assert_equal [ "First words" ], response.parsed_body["versions"].map { |v| v["body"] }
+  end
+
   test "an entry needs words or a voice recording" do
     entry = @fellow.journal_entries.build(written_on: Date.current, body: " ")
     refute entry.valid?
