@@ -14,6 +14,11 @@ const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const first = (name) => String(name || "").trim().split(/\s+/)[0] || "";
+// "Dr. Samuel Reyes" -> "Dr. Reyes"; "Ana Ruiz" -> "Ana"
+const callName = (name) => {
+  const w = String(name || "").trim().split(/\s+/);
+  return /^(Dr|Mr|Mrs|Ms|Prof)\.?$/i.test(w[0] || "") && w.length > 1 ? `${w[0]} ${w[w.length - 1]}` : w[0] || "";
+};
 const initials = (name) => String(name || "").replace(/^(Dr|Mr|Mrs|Ms|Prof)\.?\s+/i, "").split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 const longDate = (iso) => new Date(iso).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
 const longTime = (iso) => new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
@@ -33,6 +38,21 @@ document.addEventListener("click", (e) => {
   if (!go) return;
   stopListening();
   ({ home: loadHome, vault: loadVault, settings: loadSettings, story: loadStory })[go.dataset.go]?.();
+});
+
+// The Sondage name in the corner always leads home, asking first if that would stop something.
+$("#brand-home").addEventListener("click", async () => {
+  if (!state.me || !$("#view-signin").hidden || !$("#view-setup").hidden || !$("#view-restore").hidden) return;
+  const room = state.room;
+  if (room?.sealing) {
+    if (!confirm("Your recording is still being saved.\n\nGo home anyway? Nothing is lost. You can finish saving later by starting the interview again.")) return;
+  } else if (room?.recording) {
+    if (!confirm("Your interview is being recorded. Leave anyway?\n\nWhat you said so far stays saved on this computer.")) return;
+    await stopOwnRecorders();
+  }
+  if (room) teardownRoom();
+  stopListening();
+  loadHome();
 });
 
 async function boot() {
@@ -441,7 +461,11 @@ async function joinRoom(iv) {
   const video = iv.media_type === "video";
   const room = (state.room = {
     iv, video, recording: false, segments: 0, historianTracks: new Map(), sessionId: String(iv.id),
-    sender: new ChunkSender(), channel: null, waiters: {}, rings: [],
+    sender: new ChunkSender({ shouldRetry: (m) => {
+      if (m.track !== "manifest") return true;
+      state.room?.waiters.signature?.reject(new Error(`${iv.historian.name}'s screen couldn't read the summary: ${m.reason}`));
+      return false;
+    } }), channel: null, waiters: {}, rings: [],
   });
   $("#stage").classList.toggle("audio-only", !video);
   $("#remote-name").textContent = iv.historian.name;
@@ -516,7 +540,9 @@ async function onHistorianControl(msg) {
   } else if (msg.t === "signature") {
     room.waiters.signature?.resolve(msg);
   } else if (msg.t === "refuse") {
-    room.waiters.signature?.reject(new Error(`${room.iv.historian.name}'s browser declined to sign: ${msg.reason}`));
+    room.waiters.signature?.reject(new Error(`${room.iv.historian.name} could not sign: ${msg.reason}.`));
+  } else if (msg.t === "sign-shown") {
+    room.waiters.signShown?.();
   } else if (msg.t === "historian-state") {
     // Back after a dropped call while the interviewer is still recording: pick it up again.
     if (msg.recording && !room.recording) await startRecording("historian");
@@ -605,24 +631,34 @@ function teardownRoom() {
 
 // ---------------------------------------------------------------- saving (sealing)
 
-const STEPS = [
-  ["stop", "Stop recording on both sides"],
-  ["collect", "Receive every last piece of the interviewer's recording"],
-  ["manifest", "List every file and its fingerprint"],
-  ["historian", "The interviewer signs"],
-  ["seal", "You sign, the time is certified, and it's locked so only you can open it"],
-  ["receipt", "Send Sondage a receipt (never the recording)"],
-];
-function step(id, status, detail) {
+// Plain steps for the Fellow. Technical details go in "Details for helpers".
+function sealSteps(name) {
+  const who = callName(name) || "Your interviewer";
+  return [
+    ["stop", "Stopping the recording", ""],
+    ["collect", `Getting ${who}'s side of the recording`, `${who}'s computer is sending the last pieces.`],
+    ["manifest", "Making a list of everything that was recorded", ""],
+    ["historian", `${who} checks it and signs`, `${who} needs to click "Sign" on their screen.`],
+    ["seal", "Locking it so only you can open it", ""],
+    ["receipt", "Telling Sondage it is done", "Sondage gets a receipt. Never the recording."],
+  ];
+}
+function step(id, status, say, tech) {
   const li = $(`#seal-steps li[data-step="${id}"]`);
+  if (!li) return;
   li.className = status;
-  if (detail !== undefined) $(".detail", li).textContent = detail;
+  if (say !== undefined) $(".say", li).textContent = say;
+  const all = $$("#seal-steps li");
+  const done = all.filter((x) => x.classList.contains("done")).length;
+  $("#seal-bar").style.width = `${Math.round((done / all.length) * 100)}%`;
+  if (tech) $("#seal-tech").insertAdjacentHTML("beforeend", `<li class="done">${esc(li.dataset.label)}<span class="detail">${esc(tech)}</span></li>`);
 }
 
 $("#seal-retry").addEventListener("click", () => {
   if (state.room) return endAndSeal();
   loadHome();
 });
+$("#seal-resend").addEventListener("click", () => state.room?.resendManifest?.());
 $("#seal-gohome").addEventListener("click", () => {
   teardownRoom();
   loadHome();
@@ -640,8 +676,11 @@ async function endAndSeal() {
   show("seal");
   $("#seal-title").textContent = "Saving your recording…";
   $("#seal-lede").textContent = "Please keep this window open. This takes about a minute.";
-  $("#seal-spinner").hidden = false;
-  $("#seal-steps").innerHTML = STEPS.map(([id, label]) => `<li data-step="${id}">${label}<span class="detail"></span></li>`).join("");
+  const who = callName(room.iv.historian.name) || "Your interviewer";
+  $("#seal-steps").innerHTML = sealSteps(room.iv.historian.name).map(([id, label, say]) => `<li data-step="${id}" data-label="${esc(label)}"><span class="mark"></span><span>${esc(label)}<span class="say">${esc(say)}</span></span></li>`).join("");
+  $("#seal-tech").innerHTML = "";
+  $("#seal-bar").style.width = "0%";
+  $("#seal-nudge").hidden = true;
   $("#seal-error").hidden = true;
   $("#seal-result").innerHTML = "";
   $("#seal-home").hidden = true;
@@ -656,7 +695,7 @@ async function endAndSeal() {
       if (!sendControl(room.channel, { t: "end" })) { clearTimeout(t); reject(new Error("The call is not connected.")); }
       if (room.historianTracks.size > 0 && waitingFor() === 0) { clearTimeout(t); resolve(); }
     });
-    step("stop", "done");
+    step("stop", "done", "");
     step("collect", "active");
     await allEnded;
     const status = await S.rec.status(room.sessionId);
@@ -664,7 +703,7 @@ async function endAndSeal() {
       const got = status.find((s) => s.id === id);
       if (!got || got.chunks !== claim.chunks || got.link !== claim.finalChain) throw new Error(`${trackLabel(id)} arrived incomplete (${got?.chunks ?? 0} of ${claim.chunks} pieces).`);
     }
-    step("collect", "done", `${room.historianTracks.size} part${room.historianTracks.size === 1 ? "" : "s"} complete`);
+    step("collect", "done", "Every piece arrived.", `${room.historianTracks.size} part${room.historianTracks.size === 1 ? "" : "s"} complete`);
 
     step("manifest", "active");
     const built = await S.rec.manifest(room.sessionId, {
@@ -672,36 +711,48 @@ async function endAndSeal() {
       fellow: { name: state.me.user.name },
       historian: { name: room.iv.historian.name, signingPublicKey: room.iv.historian.signing_public_key },
     });
-    step("manifest", "done", `Fingerprint ${built.manifestSha256.slice(0, 16).match(/.{4}/g).join(" ")}`);
+    step("manifest", "done", "", `Fingerprint ${built.manifestSha256.slice(0, 16).match(/.{4}/g).join(" ")}`);
 
     step("historian", "active");
     const bytes = new TextEncoder().encode(built.manifestText);
+    const chunk = { track: "manifest", index: 0, bytes: bytes.buffer, sha256: await sha256Hex(bytes), meta: { capsuleId: built.capsuleId } };
+    room.resendManifest = () => {
+      $("#seal-nudge").hidden = true;
+      step("historian", "active", `Sent again. ${who} needs to click "Sign" on their screen.`);
+      room.sender.send(chunk);
+    };
+    let nudge;
     const sig = new Promise((resolve, reject) => {
       room.waiters.signature = { resolve, reject };
-      setTimeout(() => reject(new Error("The interviewer didn't sign in time.")), 180000);
+      room.waiters.signShown = () => step("historian", "active", `${who} can see the "Sign" button now.`);
+      nudge = setTimeout(() => {
+        step("historian", "active", `Still waiting for ${who}. If they don't see a "Sign" button, press "Send it again".`);
+        $("#seal-nudge").hidden = false;
+      }, 30000);
+      setTimeout(() => reject(new Error(`${who} didn't sign in time.`)), 600000);
     });
-    await room.sender.send({ track: "manifest", index: 0, bytes: bytes.buffer, sha256: await sha256Hex(bytes), meta: { capsuleId: built.capsuleId } });
-    const signed = await sig;
-    step("historian", "done", `Signed by ${room.iv.historian.name}`);
+    room.sender.send(chunk);
+    const signed = await sig.finally(() => { clearTimeout(nudge); $("#seal-nudge").hidden = true; room.waiters.signature = null; });
+    step("historian", "done", `Signed by ${room.iv.historian.name}.`);
 
     step("seal", "active");
     const result = await S.rec.seal(room.sessionId, signed.signature, room.iv.historian.signing_public_key);
     const ts = result.receipt.timestamp;
-    step("seal", "done", ts.status === "granted" ? `Time certified: ${new Date(ts.genTime).toLocaleString()}` : ts.status === "not-requested" ? "Time certification is turned off." : "The time certification service wasn't reachable.");
+    step("seal", "done", "Locked.", ts.status === "granted" ? `Time certified: ${new Date(ts.genTime).toLocaleString()}` : ts.status === "not-requested" ? "Time certification is turned off." : "The time certification service wasn't reachable.");
 
     step("receipt", "active");
     try {
       await S.api("POST", `/api/v1/interviews/${room.iv.id}/capsule`, { receipt: result.receipt });
-      step("receipt", "done");
+      step("receipt", "done", "Done.");
     } catch (ex) {
-      step("receipt", "failed", `Not sent: ${ex.message}. The recording is safe.`);
+      step("receipt", "done", "Sondage will be told later. Your recording is safe.", `Not sent: ${ex.message}`);
     }
     sendControl(room.channel, { t: "sealed", capsuleId: result.receipt.capsuleId, manifestSha256: result.receipt.manifestSha256 });
     setTimeout(teardownRoom, 1500);
 
     $("#seal-title").textContent = "Your recording is saved.";
     $("#seal-lede").textContent = "It is locked so only you can open it. You can listen to it any time.";
-    $("#seal-spinner").hidden = true;
+    $("#seal-bar").style.width = "100%";
     $("#seal-home").hidden = false;
   } catch (ex) {
     room.sealing = false;
@@ -709,7 +760,6 @@ async function endAndSeal() {
     if (active) active.className = "failed";
     $("#seal-title").textContent = "We need a little help";
     $("#seal-lede").textContent = "Don't worry. Everything you said is still saved on this computer. Please call your Sondage helper.";
-    $("#seal-spinner").hidden = true;
     $("#seal-error").textContent = ex.message;
     $("#seal-error").hidden = false;
     $("#seal-stuck").hidden = false;

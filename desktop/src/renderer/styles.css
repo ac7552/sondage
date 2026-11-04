@@ -31,6 +31,8 @@ p { margin: 0 0 16px; }
 .mono { font-family: var(--mono); font-size: 15px; }
 .stepcount { font-size: 18px; color: var(--muted); margin-bottom: 18px; min-height: 28px; }
 
+.brand { border: none; background: none; padding: 4px 8px; margin-left: -8px; min-height: 0; border-radius: 10px; color: inherit; }
+.brand:hover { background: var(--paper-2); }
 .masthead { display: flex; align-items: center; justify-content: space-between; padding: 16px 40px; border-bottom: 1px solid var(--rule); background: var(--paper); }
 .wordmark { font-size: 30px; }
 nav { display: flex; gap: 10px; }
@@ -129,6 +131,23 @@ video#cam-preview { width: 100%; max-width: 480px; border-radius: 14px; backgrou
 .steps li.failed::before { content: "! "; color: var(--accent); }
 .steps li.active::before { content: "… "; }
 .steps .detail { display: block; color: var(--muted); }
+
+/* Saving: one clear list, each step lights up in turn */
+.progress { height: 14px; background: var(--paper-2); border-radius: 99px; overflow: hidden; margin: 8px 0 30px; }
+#seal-bar { height: 100%; width: 0; background: var(--good); transition: width 500ms ease; }
+.seal-steps { list-style: none; padding: 0; margin: 0 0 24px; }
+.seal-steps li { display: grid; grid-template-columns: 48px 1fr; gap: 18px; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--rule); font-size: 24px; color: var(--muted); }
+.seal-steps .mark { width: 44px; height: 44px; border-radius: 50%; border: 3px solid var(--rule); display: grid; place-items: center; font-size: 22px; }
+.seal-steps .say { display: block; font-size: 19px; color: var(--muted); margin-top: 2px; }
+.seal-steps li.active { color: var(--ink); font-weight: 600; }
+.seal-steps li.active .say { font-weight: 400; color: var(--ink-2); }
+.seal-steps li.active .mark { border-color: var(--paper-2); border-top-color: var(--ink); animation: spin 1s linear infinite; }
+.seal-steps li.done { color: var(--ink); }
+.seal-steps li.done .mark { background: var(--good); border-color: var(--good); color: #fff; }
+.seal-steps li.done .mark::after { content: "✓"; }
+.seal-steps li.failed { color: var(--accent); }
+.seal-steps li.failed .mark { background: var(--accent); border-color: var(--accent); color: #fff; }
+.seal-steps li.failed .mark::after { content: "!"; }
 
 /* My recordings */
 .capsule-card { display: grid; grid-template-columns: 1fr auto; gap: 20px; align-items: center; }

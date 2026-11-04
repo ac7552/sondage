@@ -15,8 +15,9 @@ const PART = 16 * 1024; // safe message size across browsers
 const HIGH_WATER = 1 * 1024 * 1024;
 
 export class ChunkSender {
-  constructor({ onAck } = {}) {
+  constructor({ onAck, shouldRetry } = {}) {
     this.channel = null;
+    this.shouldRetry = shouldRetry || (() => true);
     this.unacked = new Map(); // key -> chunk
     this.order = [];
     this.onAck = onAck;
@@ -40,6 +41,10 @@ export class ChunkSender {
     if (msg.t !== "ack") return false;
     const k = this.key(msg.track, msg.index);
     if (msg.ok) {
+      this.unacked.delete(k);
+      this.order = this.order.filter((x) => x !== k);
+    } else if (!this.shouldRetry(msg)) {
+      // The other side read it and said no: sending it again won't help.
       this.unacked.delete(k);
       this.order = this.order.filter((x) => x !== k);
     } else {

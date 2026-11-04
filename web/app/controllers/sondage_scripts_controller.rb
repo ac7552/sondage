@@ -3,6 +3,10 @@
 # relative imports (./call.js and so on) pick up the same version, so a browser
 # can never mix an old cached script with a new page.
 class SondageScriptsController < ActionController::Base
+  # These are public files; Rails' guard against cross-site script requests would
+  # otherwise refuse to serve JavaScript to a <script> tag.
+  skip_forgery_protection
+
   ROOT = Rails.root.join("public", "sondage").to_s.freeze
 
   def self.version

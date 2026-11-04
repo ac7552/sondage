@@ -302,44 +302,72 @@ async function finishRecording() {
   state.recording = false;
   state.finished = true;
   updateControls();
-  $("rec-state").textContent = "Waiting to sign…";
+  $("rec-state").textContent = `Sent. ${cfg.fellowName.split(" ")[0]}'s app is listing the files…`;
   window.onbeforeunload = null;
 }
 
 // The Fellow's app sends the manifest the same way chunks travel.
+// This never waits for the historian's click (that would hold up the link), and any
+// problem is sent back to the Fellow's app so it never waits in silence.
 async function onFellowChunk(c) {
   if (c.track !== "manifest") throw new Error("Unexpected data from the Fellow's app");
-  const bytes = new Uint8Array(c.bytes);
-  const manifest = JSON.parse(new TextDecoder().decode(bytes));
-  const problems = checkManifest(manifest);
-  if (problems.length) {
-    sendControl(state.channel, { t: "refuse", reason: problems.join("; ") });
-    $("rec-state").textContent = "Not signed: the capsule didn't match your recording";
-    return;
+  try {
+    const bytes = new Uint8Array(c.bytes);
+    const manifest = JSON.parse(new TextDecoder().decode(bytes));
+    const problems = checkManifest(manifest);
+    if (problems.length) {
+      sendControl(state.channel, { t: "refuse", reason: `the summary didn't match this recording (${problems.join("; ")})` });
+      $("rec-state").textContent = "Not signed: the summary didn't match your recording";
+      return;
+    }
+    const tracks = manifest.tracks || [];
+    const mine = tracks.filter((t) => t.role === "historian" && state.tracks.has(t.id));
+    const earlier = tracks.filter((t) => t.role === "historian" && !state.tracks.has(t.id));
+    const seconds = tracks.filter((t) => t.role === "fellow" && t.kind === "audio").reduce((n, t) => n + (t.audio?.durationSeconds || 0), 0);
+    $("sign-facts").innerHTML = `
+      <dt>Fellow</dt><dd>${esc(manifest.participants?.fellow?.name || cfg.fellowName)}</dd>
+      <dt>Length</dt><dd>${seconds ? fmt(seconds) : "—"}</dd>
+      <dt>Checked by this page</dt><dd>${mine.map((t) => `${esc(t.id)} (${t.chunks?.length ?? 0} pieces)`).join(", ") || "—"}</dd>
+      ${earlier.length ? `<dt>Earlier parts</dt><dd>${earlier.map((t) => esc(t.id)).join(", ")}: recorded before this page was opened, so it can't check them byte for byte. Sign only if you did record them.</dd>` : ""}
+      <dt>Fingerprint</dt><dd class="mono">${(await sha256Hex(bytes)).slice(0, 16).toUpperCase().match(/.{4}/g).join(" ")}</dd>`;
+    state.pendingManifest = bytes; // a resend replaces it; the buttons sign whatever is newest
+    $("sign").hidden = false;
+    $("rec-state").textContent = "Please sign below";
+    $("sign-yes").disabled = false;
+    $("sign-yes").textContent = "Sign as co-author";
+    $("sign-yes").focus();
+    sendControl(state.channel, { t: "sign-shown" });
+  } catch (err) {
+    console.error(err);
+    sendControl(state.channel, { t: "refuse", reason: `the interviewer's page couldn't read the summary (${err.message})` });
+    $("rec-state").textContent = "Couldn't read the summary from the Fellow's app";
   }
-  const mine = manifest.tracks.filter((t) => t.role === "historian" && state.tracks.has(t.id));
-  const earlier = manifest.tracks.filter((t) => t.role === "historian" && !state.tracks.has(t.id));
-  const fellowAudio = manifest.tracks.find((t) => t.id === "fellow-audio");
-  $("sign-facts").innerHTML = `
-    <dt>Fellow</dt><dd>${esc(manifest.participants.fellow.name)}</dd>
-    <dt>Length</dt><dd>${fellowAudio ? fmt(fellowAudio.audio.durationSeconds) : "—"}</dd>
-    <dt>Checked by this page</dt><dd>${mine.map((t) => `${esc(t.id)} (${t.chunks.length} pieces)`).join(", ") || "—"}</dd>
-    ${earlier.length ? `<dt>Earlier parts</dt><dd>${earlier.map((t) => esc(t.id)).join(", ")}: recorded before this page was opened, so it can't check them byte for byte. Sign only if you did record them.</dd>` : ""}
-    <dt>Fingerprint</dt><dd class="mono">${(await sha256Hex(bytes)).slice(0, 16).toUpperCase().match(/.{4}/g).join(" ")}</dd>`;
-  $("sign").hidden = false;
-  const yes = await new Promise((resolve) => {
-    $("sign-yes").onclick = () => resolve(true);
-    $("sign-no").onclick = () => resolve(false);
-  });
-  $("sign").hidden = true;
-  if (!yes) {
-    sendControl(state.channel, { t: "refuse", reason: "The historian chose not to sign" });
-    return;
-  }
-  const sig = await crypto.subtle.sign({ name: "Ed25519" }, state.key.privateKey, bytes);
-  sendControl(state.channel, { t: "signature", signature: b64(sig), publicKey: state.publicKey });
-  $("rec-state").textContent = "Signed. Sealing on the Fellow's computer…";
 }
+
+$("sign-yes").addEventListener("click", async () => {
+  const bytes = state.pendingManifest;
+  if (!bytes) return;
+  $("sign-yes").disabled = true;
+  $("sign-yes").textContent = "Signing…";
+  try {
+    const sig = await crypto.subtle.sign({ name: "Ed25519" }, state.key.privateKey, bytes);
+    if (!sendControl(state.channel, { t: "signature", signature: b64(sig), publicKey: state.publicKey })) throw new Error("The call isn't connected right now. Wait a moment and press Sign again.");
+    state.pendingManifest = null;
+    $("sign").hidden = true;
+    $("rec-state").textContent = `Signed. Locking it on ${cfg.fellowName.split(" ")[0]}'s computer…`;
+  } catch (err) {
+    console.error(err);
+    alert(err.message);
+    $("sign-yes").disabled = false;
+    $("sign-yes").textContent = "Sign as co-author";
+  }
+});
+$("sign-no").addEventListener("click", () => {
+  state.pendingManifest = null;
+  $("sign").hidden = true;
+  sendControl(state.channel, { t: "refuse", reason: "the interviewer chose not to sign" });
+  $("rec-state").textContent = "Not signed";
+});
 
 function checkManifest(m) {
   const problems = [];

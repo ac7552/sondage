@@ -10,7 +10,7 @@
 </head>
 <body>
   <header class="masthead">
-    <div class="brand"><span class="wordmark">Sondage</span></div>
+    <button class="brand" id="brand-home" title="Go to my home page"><span class="wordmark">Sondage</span></button>
     <nav id="nav" hidden>
       <button data-go="home" class="navlink">Home</button>
       <button data-go="story" class="navlink">My life story</button>
@@ -213,15 +213,19 @@
       <div class="page">
         <h1 id="seal-title">Saving your recording…</h1>
         <p class="big" id="seal-lede">Please keep this window open. This takes about a minute.</p>
-        <div class="spinner" id="seal-spinner" aria-hidden="true"></div>
+        <div class="progress" aria-hidden="true"><div id="seal-bar"></div></div>
+        <ol class="seal-steps" id="seal-steps"></ol>
+        <div class="buttons" id="seal-nudge" hidden>
+          <button id="seal-resend">Send it again</button>
+        </div>
         <p class="problem" id="seal-error" hidden></p>
-        <button class="primary" id="seal-home" hidden data-go="vault">See my recordings</button>
+        <button class="primary" id="seal-home" hidden data-go="vault">Listen to my recording</button>
         <div class="buttons" id="seal-stuck" hidden>
           <button class="primary" id="seal-retry">Try again</button>
           <button id="seal-gohome">Go to my home page</button>
         </div>
-        <details class="helpers-only"><summary>What happened, step by step</summary>
-          <ol class="steps" id="seal-steps"></ol>
+        <details class="helpers-only"><summary>Details for helpers</summary>
+          <ol class="steps" id="seal-tech"></ol>
           <div id="seal-result"></div>
         </details>
       </div>
