@@ -587,3 +587,31 @@ button.wide { width: 100%; }
 .journal-page .page-actions { display: flex; align-items: center; gap: 14px; margin-top: calc(var(--line) / 2); flex-wrap: wrap; }
 .journal-page .page-actions .small { margin-left: 8px; }
 .write-page .page-date { border-bottom: none; }
+
+/* ================================================================ Slim interview card, bigger notebook
+   The interview is a single quiet row on the home screen: a small date, the time, and
+   the button on the right. The journal's notebook gets the room instead. */
+.feature { grid-template-columns: auto minmax(0, 1fr); margin-bottom: 32px; }
+.feature-photo { display: none; }
+.feature .cal { margin: 16px 0 16px 22px; width: 56px; align-self: center; }
+.cal .m { padding: 4px 0; font-size: 11px; letter-spacing: .16em; }
+.cal .d { font-size: 26px; padding: 6px 0 2px; }
+.cal .w { font-size: 10px; letter-spacing: .14em; padding-bottom: 6px; }
+.feature-text > div:not(.cal) { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 28px; align-items: center; padding: 16px 24px 16px 20px; }
+.feature-text > div:not(.cal):only-child { grid-column: 1 / -1; padding-left: 28px; }
+.feature-text > div:not(.cal) > * { grid-column: 1; }
+.feature-text > div:not(.cal) > button { grid-column: 2; grid-row: 1 / span 3; margin: 0; }
+.feature .label { margin: 0 0 2px; font-size: 13px; }
+.feature .when { font-size: 26px; line-height: 1.2; margin: 0 0 2px; }
+.feature .with { font-size: 16px; line-height: 1.4; margin: 0; }
+.feature .with + button, .feature button.primary, .feature button { min-height: 48px; font-size: 16px; padding: 10px 22px; white-space: nowrap; }
+.feature .saved-note { margin: 6px 0 0; }
+@media (max-width: 760px) {
+  .feature-text > div:not(.cal) { grid-template-columns: 1fr; row-gap: 4px; }
+  .feature-text > div:not(.cal) > button { grid-column: 1; grid-row: auto; margin-top: 12px; justify-self: start; }
+}
+
+#view-journal .journal-layout { grid-template-columns: 300px minmax(0, 1fr); gap: 48px; max-width: 1480px; }
+.journal-page .notebook { min-height: max(900px, calc(100vh - 120px)); margin-bottom: 24px; }
+.editor { min-height: calc(var(--line) * 14); }
+@media (max-width: 1000px) { #view-journal .journal-layout { grid-template-columns: 1fr; } .journal-panel { position: static; } }
