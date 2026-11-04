@@ -349,3 +349,83 @@ textarea.ruled::placeholder { color: #a7a196; font-style: italic; }
 .notebook-mini::before { content: ""; position: absolute; left: -24px; top: 16px; bottom: 16px; width: 48px; pointer-events: none;
   background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='60' height='40'><circle cx='44' cy='20' r='6' fill='%23e4dccb'/><circle cx='44' cy='20' r='4' fill='%233a352d'/><path d='M44 17.5C34 6 9 8 10 20c1 10 22 11 32 3' fill='none' stroke='%237d7a74' stroke-width='3.4' stroke-linecap='round'/><path d='M43 16.5C33 7.5 12 9 11.5 18' fill='none' stroke='%23e6e6e6' stroke-width='1.2' stroke-linecap='round'/></svg>") repeat-y 0 0 / 48px 32px; }
 .notebook-mini .mini-question { line-height: 40px; }
+
+/* ================================================================ Editorial layer
+   Inspired by francescanoemimarconi.it: near-white paper, charcoal ink, big
+   lowercase Cormorant headlines, small tracked uppercase labels with [01]
+   numbering, hairline cards, lots of air. Text stays large for older eyes. */
+:root {
+  --paper: #f9f9f7; --paper-2: #efeeea; --card: #ffffff; --ink: #303030; --ink-2: #4b4a47; --muted: #6e6d69; --rule: #e4e2dd;
+  --serif: "Cormorant Garamond", "Iowan Old Style", Georgia, serif;
+  --sans: "Manrope", -apple-system, "Segoe UI", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+body { font: 20px/1.6 var(--sans); color: var(--ink); background: var(--paper); }
+h1 { font: 600 76px/0.95 var(--serif); letter-spacing: -0.02em; text-transform: lowercase; margin: 0 0 26px; }
+h2 { font: 600 44px/1 var(--serif); letter-spacing: -0.02em; text-transform: lowercase; margin: 56px 0 16px; }
+.big { font: 400 22px/1.6 var(--sans); color: var(--ink-2); max-width: 36em; }
+.label, .stepcount { font: 600 15px/1.4 var(--sans); letter-spacing: .18em; text-transform: uppercase; color: var(--ink); }
+.label .n, .eyebrow-n { color: var(--muted); font-weight: 500; letter-spacing: .08em; margin-right: 10px; }
+.small { font-size: 17px; }
+
+/* top bar: small tracked capitals, the current page in [ brackets ] */
+.masthead { height: 79px; padding: 0 56px; background: var(--paper); border-bottom: 1px solid var(--rule); }
+.wordmark { font: 600 17px var(--sans); letter-spacing: .24em; text-transform: uppercase; }
+.wordmark::after { content: " • standard"; font-weight: 400; color: var(--muted); letter-spacing: .18em; text-transform: uppercase; }
+nav { gap: 4px; }
+.navlink { font: 500 15px var(--sans); letter-spacing: .14em; text-transform: uppercase; padding: 10px 16px; border: none; border-radius: 0; min-height: 0; color: var(--ink-2); }
+.navlink:hover { background: none; color: var(--ink); }
+.navlink.active { color: var(--ink); font-weight: 700; }
+.navlink.active::before { content: "[ "; } .navlink.active::after { content: " ]"; }
+.navlink.signout { font-size: 14px; }
+
+/* buttons: plain, confident, still big */
+button { font: 600 19px var(--sans); border-radius: 4px; border: 1.5px solid var(--ink); min-height: 60px; padding: 14px 30px; background: transparent; }
+button:hover { background: var(--paper-2); }
+button.primary { background: var(--ink); border-color: var(--ink); color: #fff; font-size: 20px; min-height: 66px; min-width: 0; padding: 16px 38px; letter-spacing: .01em; }
+button.primary:hover { background: #111; }
+button.quiet { border-color: var(--rule); color: var(--ink-2); }
+
+/* hairline cards */
+.card, .feature, .home-tile, .hist-card, .capsule-card { background: var(--card); border: 1px solid var(--rule); border-radius: 8px; box-shadow: none; }
+.feature { box-shadow: 0 30px 60px -48px rgba(0,0,0,.35); }
+input, select, textarea { border: 1.5px solid #cfccc5; border-radius: 4px; font-family: var(--sans); }
+
+/* home */
+.home-head { align-items: flex-end; margin: 8px 0 40px; }
+.home-head h1 { font-size: 92px; }
+#home-today { font: 400 15px var(--mono); font-style: normal; letter-spacing: .04em; color: var(--muted); display: flex; align-items: center; gap: 14px; }
+#home-today::after { content: ""; width: 180px; height: 12px; background: repeating-linear-gradient(to right, #9b9994 0 1px, transparent 1px 9px); opacity: .7; }
+.feature-text { padding: 48px 48px 44px; }
+.feature .when { font: 600 48px/1 var(--serif); letter-spacing: -0.02em; margin: 6px 0 14px; }
+.feature .with { font-size: 20px; }
+.cal { border: 1px solid var(--ink); border-radius: 6px; box-shadow: none; width: 96px; }
+.cal .m { background: transparent; color: var(--accent); border-bottom: 1px solid var(--rule); font: 700 14px var(--sans); letter-spacing: .2em; }
+.cal .d { font: 600 58px/1 var(--serif); padding: 10px 0 0; }
+.cal .w { font: 600 13px var(--sans); letter-spacing: .18em; }
+.home-tiles { gap: 28px; }
+.home-tile-body h3 { font: 600 32px/1.1 var(--serif); letter-spacing: -0.01em; text-transform: lowercase; }
+.mini-question { font: italic 500 30px/1.25 var(--serif); }
+.home-strip { border: 1px solid var(--rule); background: var(--card); border-radius: 8px; }
+
+/* journal text in the serif, larger to suit Cormorant's small letters */
+.notebook .words, textarea.ruled { font: 500 29px/var(--line) var(--serif); color: #232a38; }
+.page-date { font: 600 14px/var(--line) var(--sans); letter-spacing: .16em; color: #8a6d4a; }
+.page-answering { font: italic 500 22px/var(--line) var(--serif); }
+.sticky-q { font: italic 500 32px/1.2 var(--serif); }
+.sticky-from { font: 700 13px var(--sans); letter-spacing: .16em; }
+.prompt-quote { font: 500 34px/1.25 var(--serif); }
+.journal-head h1 { margin-bottom: 14px; }
+.entry .shared, .page-date .shared, .page-date .private, .hist-card .wants { font: 600 12px var(--sans); letter-spacing: .12em; text-transform: uppercase; padding: 4px 10px; border-radius: 3px; vertical-align: 2px; }
+.page-date .private { background: var(--paper-2); color: var(--muted); }
+
+/* sign in */
+.auth-photo .wordmark { font-size: 18px; color: #fff; }
+.auth-photo .wordmark::after { color: rgba(255,255,255,.7); }
+.auth-line { font: 600 54px/1 var(--serif); letter-spacing: -0.02em; text-transform: lowercase; }
+.auth-form h1 { font-size: 80px; }
+
+/* other headings that were serif-regular */
+.hist-card h3, .capsule-card h3 { font: 600 38px/1 var(--serif); letter-spacing: -0.01em; }
+.timer { font-family: var(--serif); font-weight: 600; }
+#view-story .tl-world .label { text-transform: none; letter-spacing: 0; }

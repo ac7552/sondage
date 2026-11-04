@@ -167,3 +167,54 @@ body.auth-page main { max-width: none; padding: 0; margin: 0; }
 .auth-foot { margin-top: 36px; }
 @media (max-width: 900px) { .auth { grid-template-columns: 1fr; } .auth-photo { min-height: 240px; } .auth-form { padding: 36px 24px; } }
 .photo-band { height: 200px; border-radius: 12px; margin: 0 0 28px; background: #d9d2c4 center / cover no-repeat; filter: grayscale(1) contrast(1.04); }
+
+/* ================================================================ Editorial layer
+   Inspired by francescanoemimarconi.it: near-white paper, charcoal ink, big
+   lowercase Cormorant headlines, small tracked capitals for labels and the top
+   bar, hairline cards, generous space, a dark closing band. */
+:root {
+  --paper: #f9f9f7; --paper-2: #efeeea; --card: #ffffff; --ink: #303030; --ink-2: #4b4a47; --muted: #6e6d69; --rule: #e4e2dd;
+  --serif: "Cormorant Garamond", "Iowan Old Style", Georgia, serif;
+  --sans: "Manrope", -apple-system, "Segoe UI", system-ui, sans-serif;
+}
+body { font: 16px/1.65 var(--sans); color: var(--ink); background: var(--paper); }
+h1 { font: 600 clamp(48px, 6vw, 86px)/0.95 var(--serif); letter-spacing: -0.02em; text-transform: lowercase; margin: 0 0 22px; }
+h2 { font: 600 clamp(32px, 3.4vw, 48px)/1.02 var(--serif); letter-spacing: -0.02em; text-transform: lowercase; margin: 56px 0 16px; }
+h3 { font: 600 26px/1.15 var(--serif); letter-spacing: -0.01em; }
+.lede { font: 400 18px/1.65 var(--sans); color: var(--ink-2); max-width: 40em; }
+.eyebrow { font: 600 12px/1.4 var(--sans); letter-spacing: .2em; text-transform: uppercase; color: var(--ink); }
+
+.masthead { padding: 22px 48px; background: var(--paper); border-bottom: 1px solid var(--rule); }
+.wordmark { font: 600 15px var(--sans); letter-spacing: .26em; text-transform: uppercase; }
+.brand .sub { font: 400 15px var(--sans); letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
+.masthead nav { gap: 26px; }
+.masthead nav a { font: 500 12.5px var(--sans); letter-spacing: .15em; text-transform: uppercase; color: var(--ink-2); }
+.masthead nav a:hover { text-decoration: none; color: var(--ink); }
+.masthead nav a.active { color: var(--ink); font-weight: 700; }
+.masthead nav a.active::before { content: "[ "; } .masthead nav a.active::after { content: " ]"; }
+.masthead .who { font-size: 12px; letter-spacing: .08em; }
+.masthead button.link { font: 500 12.5px var(--sans); letter-spacing: .15em; text-transform: uppercase; text-decoration: none; color: var(--muted); }
+
+.button, button, input[type=submit] { font: 600 15px var(--sans); border-radius: 4px; border: 1.5px solid var(--ink); padding: 11px 22px; }
+.button.primary, button.primary, input[type=submit].primary { background: var(--ink); color: #fff; }
+.button.quiet { border-color: var(--rule); }
+.card { background: var(--card); border: 1px solid var(--rule); border-radius: 8px; box-shadow: none; }
+.tag { font: 600 11px var(--sans); letter-spacing: .12em; text-transform: uppercase; border-radius: 3px; background: var(--paper-2); }
+input, select, textarea { font-family: var(--sans); border-radius: 4px; }
+ol.stages li { font: 600 12px var(--sans); letter-spacing: .14em; text-transform: uppercase; border-top-width: 2px; }
+dl.facts dt { font: 600 11px/2 var(--sans); letter-spacing: .14em; text-transform: uppercase; }
+
+.colophon { background: #303030; color: #cfccc5; border: none; text-align: left; padding: 64px 48px 56px; font-size: 13px; }
+.colophon p { max-width: 1120px; margin: 0 auto; }
+.colophon .colophon-line { font: 600 clamp(32px, 3.6vw, 52px)/1 var(--serif); letter-spacing: -0.02em; color: #fff; margin-bottom: 18px; }
+
+/* Fellows: everything larger */
+body.fellow-ui { font-size: 19px; }
+body.fellow-ui .lede { font-size: 21px; }
+body.fellow-ui .masthead nav a { font-size: 14.5px; }
+body.fellow-ui .eyebrow { font-size: 14px; }
+
+/* sign in */
+.auth-photo .wordmark { font-size: 16px; color: #fff; }
+.auth-line { font: 600 50px/1 var(--serif); letter-spacing: -0.02em; text-transform: lowercase; }
+body.plain .wordmark { font-size: 15px; display: inline; }

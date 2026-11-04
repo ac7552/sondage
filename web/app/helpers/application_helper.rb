@@ -1,4 +1,10 @@
 module ApplicationHelper
+  # A top-bar link; the page you're on is shown as [ LINK ].
+  def nav_link(label, path)
+    here = current_page?(path) || (path != root_path && path != match_path && request.path.start_with?("#{path}/"))
+    link_to label, path, class: ("active" if here), "aria-current": ("page" if here)
+  end
+
   # A script from public/sondage, at a path that changes whenever the scripts change.
   def sondage_script_tag(name)
     # If the versioned copy can't load for any reason, fall back to the plain file.

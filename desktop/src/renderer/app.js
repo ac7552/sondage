@@ -29,6 +29,9 @@ const state = { config: null, me: null, keys: null, setup: null, room: null };
 function show(name) {
   $$(".view").forEach((v) => (v.hidden = v.id !== `view-${name}`));
   document.body.dataset.view = name;
+  // The current page is shown in [ brackets ] in the top bar.
+  const section = { listen: "vault", write: "journal" }[name] || name;
+  $$("#nav [data-go]").forEach((b) => b.classList.toggle("active", b.dataset.go === section || (section === "heir" && b.dataset.go === "home")));
   $("#nav").hidden = !["home", "vault", "settings", "listen", "story", "journal", "historians", "heir"].includes(name);
   window.scrollTo(0, 0);
   const h = $(`#view-${name} h1`);
@@ -306,7 +309,7 @@ async function loadHome() {
     return;
   }
   $("#home-greeting").textContent = `Hello, ${first(state.me.fellow?.name || state.me.user.name)}.`;
-  $("#home-today").textContent = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+  $("#home-today").textContent = "Today · " + new Date().toLocaleDateString(undefined, { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
   const f = state.me.fellow || {};
   const next = (state.me.interviews || []).find((iv) => iv.status !== "sealed");
   const done = (state.me.interviews || []).filter((iv) => iv.status === "sealed");
@@ -321,7 +324,7 @@ async function loadHome() {
         <div class="feature-text">
           ${d ? `<div class="cal" aria-hidden="true"><span class="m">${esc(d.toLocaleDateString(undefined, { month: "short" }))}</span><span class="d">${d.getDate()}</span><span class="w">${esc(d.toLocaleDateString(undefined, { weekday: "short" }))}</span></div>` : ""}
           <div>
-            <p class="label">Your interview${next.parts > 1 ? `, part ${next.part} of ${next.parts}` : ""}</p>
+            <p class="label"><span class="n">[01]</span>Your interview${next.parts > 1 ? `, part ${next.part} of ${next.parts}` : ""}</p>
             <p class="when">${d ? `${esc(dayWord(d))} at ${esc(longTime(next.scheduled_at))}` : "Soon"}</p>
             <p class="with">with ${esc(next.historian?.name || "your interviewer")}. ${next.media_type === "video" ? "You will see and hear each other." : "You will hear each other. No camera."}</p>
             <button class="primary" data-join="${next.id}">Start my interview</button>
@@ -371,14 +374,14 @@ async function loadHome() {
       <article class="home-tile">
         <div class="home-tile-photo" style="background-image: url(photos/archive.jpg)"></div>
         <div class="home-tile-body">
-          <p class="label">My life story</p>
+          <p class="label"><span class="n">[02]</span>My life story</p>
           <h3>Your photos, songs and memories, in order.</h3>
           <button data-go="story">Open my life story</button>
         </div>
       </article>
       <article class="home-tile notebook-mini">
         <div class="home-tile-body">
-          <p class="label">My journal</p>
+          <p class="label"><span class="n">[03]</span>My journal</p>
           ${prompt
             ? `<p class="mini-question">“${esc(prompt.text)}”</p><p class="small">${esc(callName(prompt.from))} asked you${waiting > 1 ? `, and ${waiting - 1} more question${waiting > 2 ? "s" : ""}` : ""}.</p>`
             : `<h3>Write down a memory whenever it comes to you.</h3>`}

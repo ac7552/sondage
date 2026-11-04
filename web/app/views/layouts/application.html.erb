@@ -8,21 +8,21 @@
   <%= csp_meta_tag %>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400..700;1,400..700&family=Manrope:wght@400..800&display=swap" rel="stylesheet">
   <%= stylesheet_link_tag "application" %>
   <%= yield :head %>
   <script src="/sondage/ui.js" defer></script>
 </head>
 <body class="<%= content_for(:body_class) %> <%= "fellow-ui" if user_signed_in? && current_user.fellow? %>">
   <header class="masthead">
-    <%= link_to root_path, class: "brand" do %><span class="wordmark">Sondage</span><span class="sub">Making human history</span><% end %>
+    <%= link_to root_path, class: "brand" do %><span class="wordmark">Sondage</span><span class="sub">• standard</span><% end %>
     <% if user_signed_in? %>
       <nav>
-        <%= link_to "Home", root_path %>
-        <% if current_user.admin? %><%= link_to "Intake questions", intake_questions_path %><% end %>
-        <% if current_user.fellow? && current_user.fellow %><%= link_to "My timeline", fellow_timeline_path(current_user.fellow) %><%= link_to "My journal", fellow_journal_entries_path(current_user.fellow) %><%= link_to (current_user.fellow.historian ? "My historian" : "Choose a historian"), match_path %><% end %>
-        <% if current_user.admin? %><%= link_to "Matching", match_path %><% end %>
-        <% if current_user.historian? %><%= link_to "Find Fellows", match_path %><%= link_to "My profile", edit_historian_profile_path %><% end %>
+        <%= nav_link "Home", root_path %>
+        <% if current_user.admin? %><%= nav_link "Intake questions", intake_questions_path %><% end %>
+        <% if current_user.fellow? && current_user.fellow %><%= nav_link "My timeline", fellow_timeline_path(current_user.fellow) %><%= nav_link "My journal", fellow_journal_entries_path(current_user.fellow) %><%= nav_link (current_user.fellow.historian ? "My historian" : "Choose a historian"), match_path %><% end %>
+        <% if current_user.admin? %><%= nav_link "Matching", match_path %><% end %>
+        <% if current_user.historian? %><%= nav_link "Find Fellows", match_path %><%= nav_link "My profile", edit_historian_profile_path %><% end %>
         <span class="who"><%= current_user.name %> · <%= current_user.role.capitalize %></span>
         <%= button_to "Sign out", destroy_user_session_path, method: :delete, class: "link" %>
       </nav>
@@ -33,6 +33,9 @@
     <% if alert %><p class="flash alert"><%= alert %></p><% end %>
     <%= yield %>
   </main>
-  <footer class="colophon">Human-made. No AI is used to collect, record, transcribe or interpret anything here.</footer>
+  <footer class="colophon">
+    <p class="colophon-line">every life is a history.</p>
+    <p>Human-made. No AI is used to collect, record, transcribe or interpret anything here.</p>
+  </footer>
 </body>
 </html>
