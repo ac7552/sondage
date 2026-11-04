@@ -1,0 +1,48 @@
+<% page_title "Matching" %>
+<p class="eyebrow">Admin</p>
+<h1>Matching</h1>
+<p class="lede">When a Fellow and a historian choose each other, call the Fellow to make sure, then confirm.</p>
+
+<h2>Ready to confirm</h2>
+<table class="list">
+  <thead><tr><th>Fellow</th><th>Historian</th><th>Since</th><th></th></tr></thead>
+  <tbody>
+    <% @mutual.each do |m| %>
+      <tr>
+        <td><%= link_to m.fellow.display_name, fellow_path(m.fellow) %></td>
+        <td><%= m.historian.name %></td>
+        <td class="small"><%= m.updated_at.strftime("%b %-d") %></td>
+        <td class="actions"><%= button_to "Confirm match", confirm_match_path(m), class: "primary", form_class: "inline" %><%= button_to "Decline", decline_match_path(m), class: "link", form_class: "inline" %></td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>
+<% if @mutual.empty? %><p class="muted">Nothing to confirm.</p><% end %>
+
+<h2>One side has chosen</h2>
+<table class="list">
+  <thead><tr><th>Fellow</th><th>Historian</th><th>Who chose</th><th></th></tr></thead>
+  <tbody>
+    <% @one_sided.each do |m| %>
+      <tr>
+        <td><%= link_to m.fellow.display_name, fellow_path(m.fellow) %></td>
+        <td><%= m.historian.name %></td>
+        <td class="small"><%= m.fellow_wants ? "The Fellow" : "The historian" %></td>
+        <td class="actions"><%= button_to "Match them anyway", confirm_match_path(m), class: "quiet", form_class: "inline", onclick: "return confirm('Only one of them chose the other. Match them anyway?')" %></td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>
+<% if @one_sided.empty? %><p class="muted">None.</p><% end %>
+
+<div class="grid two">
+  <div>
+    <h2>Looking for a historian</h2>
+    <ul class="plain-list"><% @seeking.each do |f| %><li><%= link_to f.display_name, fellow_path(f) %></li><% end %></ul>
+    <% if @seeking.empty? %><p class="muted">No one.</p><% end %>
+  </div>
+  <div>
+    <h2>Matched</h2>
+    <ul class="plain-list"><% @matched.each do |f| %><li><%= link_to f.display_name, fellow_path(f) %> · <%= f.historian.name %></li><% end %></ul>
+  </div>
+</div>

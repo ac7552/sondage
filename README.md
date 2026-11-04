@@ -141,3 +141,14 @@ or follow `VERIFY.txt` by hand.
 - **Linux without a keychain** falls back to a file readable only by the user. The app says so.
 - **Identity verification** at onboarding, human transcription as a later version beside the sealed originals, and encrypted upload to storage the Fellow chooses are designed but not built.
 - **Questions for Sondage:** whether an encrypted cloud copy nobody else can read satisfies Non-Custodial Sovereignty, and whether compressed video is acceptable alongside the uncompressed audio.
+
+
+## Journal and matching
+
+**Journal.** Fellows write or record a voice note any time, in the desktop app (My journal) or on the web. Entries are private unless the Fellow ticks "Let my historian read this"; admins and historians only ever see shared entries, and voice notes are served only to allowed readers (no public links). Historians and admins can leave questions; answering one shares it by default, and "Not now" sets it aside. Unlike the sealed interview, journal entries can be changed or deleted.
+
+**Matching.** A Fellow chooses up to three historians from their profiles; historians see Fellows who are looking (first name, birth decade, hometown, and the Fellow's own short introduction only) and choose the ones they'd like to work with. When both sides choose each other, admins are emailed, call the Fellow, and press Confirm on the Matching page. Admins can also set a historian directly on a Fellow's profile. Once matched, the historian can open the Fellow's profile, timeline and shared journal entries.
+
+Extra demo accounts: `historian2@sondage.test` (Grace Whitfield, who has chosen Walter), `historian3@sondage.test`, and `walter@sondage.test` (a Fellow still looking). Same password.
+
+Tests: `web/test/integration/journal_and_matching_test.rb`, and `e2e/e2e-journal.mjs` for the desktop app.

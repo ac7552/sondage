@@ -24,6 +24,39 @@ export const state = { receipt: null };
 
 const sample = JSON.parse(fs.readFileSync(new URL("./sample-timeline.json", import.meta.url)));
 
+// Journal and matching, as the Rails API returns them.
+const jr = {
+  nextId: 1, entries: [], voices: new Map(),
+  prompts: [{ id: 1, text: "What did your mother cook on Sundays in Ponce?", from: "Dr. Samuel Reyes", dismissed: false }, { id: 2, text: "Do you remember the first time you saw snow?", from: "Dr. Samuel Reyes", dismissed: false }],
+};
+const answered = () => new Set(jr.entries.map((e) => e.prompt?.id).filter(Boolean));
+const waitingPrompts = () => jr.prompts.filter((p) => !p.dismissed && !answered().has(p.id)).map(({ id, text, from }) => ({ id, text, from }));
+function saveEntry(e, b) {
+  const x = b.entry || {};
+  if (x.body !== undefined) e.body = x.body;
+  if (x.shared_with_historian !== undefined) e.shared_with_historian = !!x.shared_with_historian;
+  if (x.era_id !== undefined) { const era = sample.eras.find((r) => String(r.id) === String(x.era_id)); e.era = era ? { id: era.id, title: era.title } : null; }
+  if (x.journal_prompt_id) { const pr = jr.prompts.find((r) => r.id === +x.journal_prompt_id); e.prompt = pr ? { id: pr.id, text: pr.text } : null; }
+  if (b.remove_voice) { jr.voices.delete(e.id); e.voice = null; }
+  if (x.voice?.base64) {
+    const bytes = Buffer.from(x.voice.base64, "base64");
+    const type = String(x.voice.content_type).split(";")[0];
+    jr.voices.set(e.id, { bytes, type });
+    e.voice = { content_type: type, bytes: bytes.length };
+  }
+  if (!e.body && !e.voice) return "Write something or record your voice";
+  e.updated_at = new Date().toISOString();
+  return null;
+}
+const hist = {
+  matched: null, seeking: false, intro: "", languages: "",
+  list: [
+    { id: 2, name: "Dr. Samuel Reyes", headline: "Oral historian of Puerto Rican New York", bio: "I grew up in East Harlem listening to my grandmother's stories. I speak English and Spanish, and I like to go slowly.", languages: ["English", "Spanish"], regions: ["New York", "Puerto Rico"], specialties: ["Migration", "family businesses", "music"], chosen: false, wants_you: true },
+    { id: 4, name: "Grace Whitfield", headline: "Life stories of working people in the American South", bio: "I spent my career at a small-town library in Georgia. I am a patient listener and I never rush.", languages: ["English"], regions: ["Georgia", "the Carolinas"], specialties: ["Farming", "nursing"], chosen: false, wants_you: false },
+    { id: 5, name: "Dr. Daniel Okonkwo", headline: "Historian of postwar immigration and city life", bio: "I record the lives of people who built new homes in American cities after the war.", languages: ["English", "French"], regions: ["New York", "Chicago"], specialties: ["Immigration", "faith"], chosen: false, wants_you: false },
+  ],
+};
+
 function json(res, code, obj) {
   res.writeHead(code, { "Content-Type": "application/json" });
   res.end(JSON.stringify(obj));
@@ -56,7 +89,8 @@ const server = http.createServer(async (req, res) => {
     return json(res, 200, {
       user: { id: 3, name: users.fellow.name, email: users.fellow.email, role: "fellow" },
       fellow: { id: 1, name: users.fellow.name, stage: "interview", signing_public_key: users.fellow.signing_public_key, age_recipient: fellow.age_recipient,
-        safety_contacts: safety.contacts.map(({ name, email, role }) => ({ name, email, role })), pending_recovery_id: safety.recoveries.find((r) => r.status === "pending")?.id || null },
+        safety_contacts: safety.contacts.map(({ name, email, role }) => ({ name, email, role })), pending_recovery_id: safety.recoveries.find((r) => r.status === "pending")?.id || null,
+        historian: hist.matched?.name || null, journal_prompts_waiting: waitingPrompts().length },
       interviews: [{ ...meeting, historian: { name: users.historian.name, signing_public_key: users.historian.signing_public_key }, capsule: null, ice_servers: [] }],
     });
   }
@@ -70,6 +104,46 @@ const server = http.createServer(async (req, res) => {
     return json(res, 200, { ok: true });
   }
   if (p === "/api/v1/fellow/timeline") return json(res, 200, sample);
+  if (p === "/api/v1/journal" && req.method === "GET") {
+    return json(res, 200, { entries: [...jr.entries].reverse(), prompts: waitingPrompts(), eras: sample.eras.map(({ id, title, start_year, end_year, startYear, endYear }) => ({ id, title, start_year: start_year ?? startYear, end_year: end_year ?? endYear })), historian: hist.matched?.name || "Dr. Samuel Reyes" });
+  }
+  if (p === "/api/v1/journal" && req.method === "POST") {
+    const e = { id: jr.nextId++, written_on: new Date().toISOString().slice(0, 10), body: "", shared_with_historian: false, era: null, prompt: null, voice: null };
+    const err = saveEntry(e, await body(req));
+    if (err) return json(res, 422, { error: err });
+    jr.entries.push(e);
+    log(`journal: new entry ${e.id}${e.voice ? ` with voice (${e.voice.bytes} bytes, ${e.voice.content_type})` : ""}${e.shared_with_historian ? ", shared" : ", private"}`);
+    return json(res, 201, e);
+  }
+  let jm;
+  if ((jm = p.match(/^\/api\/v1\/journal\/prompts\/(\d+)\/dismiss$/))) { const pr = jr.prompts.find((r) => r.id === +jm[1]); if (pr) pr.dismissed = true; return json(res, 204, {}); }
+  if ((jm = p.match(/^\/api\/v1\/journal\/(\d+)\/voice$/))) {
+    const v = jr.voices.get(+jm[1]);
+    if (!v) return json(res, 404, { error: "Not found" });
+    res.writeHead(200, { "Content-Type": v.type });
+    return res.end(v.bytes);
+  }
+  if ((jm = p.match(/^\/api\/v1\/journal\/(\d+)$/))) {
+    const e = jr.entries.find((r) => r.id === +jm[1]);
+    if (!e) return json(res, 404, { error: "Not found" });
+    if (req.method === "DELETE") { jr.entries = jr.entries.filter((r) => r !== e); jr.voices.delete(e.id); log(`journal: deleted ${e.id}`); return json(res, 204, {}); }
+    const err = saveEntry(e, await body(req));
+    if (err) return json(res, 422, { error: err });
+    log(`journal: changed ${e.id}`);
+    return json(res, 200, e);
+  }
+  if (p === "/api/v1/historians") return json(res, 200, { matched: hist.matched, seeking: hist.seeking, intro: hist.intro, languages: hist.languages, max_choices: 3, historians: hist.list });
+  if ((jm = p.match(/^\/api\/v1\/historians\/(\d+)\/choose$/))) {
+    const h = hist.list.find((r) => r.id === +jm[1]);
+    if (!h) return json(res, 404, { error: "Not found" });
+    if (req.method === "POST" && hist.list.filter((r) => r.chosen).length >= 3) return json(res, 422, { error: "You can choose up to 3 historians" });
+    h.chosen = req.method === "POST";
+    if (h.chosen) hist.seeking = true;
+    log(`matching: fellow ${h.chosen ? "chose" : "withdrew"} ${h.name}${h.chosen && h.wants_you ? " (mutual: admins emailed)" : ""}`);
+    return json(res, 200, { chosen: h.chosen, mutual: h.chosen && h.wants_you });
+  }
+  if (p === "/api/v1/match_intro") { const b = await body(req); hist.intro = b.fellow.match_intro; hist.languages = b.fellow.languages; log("matching: intro saved"); return json(res, 204, {}); }
+  if (p === "/test/confirm-match") { const h = hist.list.find((r) => r.chosen && r.wants_you); hist.matched = { ...h }; delete hist.matched.chosen; delete hist.matched.wants_you; log(`matching: admin confirmed ${h.name}`); return json(res, 200, {}); }
   if (p === "/api/v1/interviews/1/capsule" && req.method === "POST") {
     const { receipt } = await body(req);
     const sigs = receipt.signatures;

@@ -28,7 +28,7 @@ const state = { config: null, me: null, keys: null, setup: null, room: null };
 
 function show(name) {
   $$(".view").forEach((v) => (v.hidden = v.id !== `view-${name}`));
-  $("#nav").hidden = !["home", "vault", "settings", "listen", "story"].includes(name);
+  $("#nav").hidden = !["home", "vault", "settings", "listen", "story", "journal", "historians"].includes(name);
   window.scrollTo(0, 0);
   const h = $(`#view-${name} h1`);
   if (h) { h.tabIndex = -1; h.focus({ preventScroll: true }); }
@@ -37,7 +37,8 @@ document.addEventListener("click", (e) => {
   const go = e.target.closest("[data-go]");
   if (!go) return;
   stopListening();
-  ({ home: loadHome, vault: loadVault, settings: loadSettings, story: loadStory })[go.dataset.go]?.();
+  stopVoice();
+  ({ home: loadHome, vault: loadVault, settings: loadSettings, story: loadStory, journal: loadJournal, historians: loadHistorians })[go.dataset.go]?.();
 });
 
 // The Sondage name in the corner always leads home, asking first if that would stop something.
@@ -316,6 +317,12 @@ async function loadHome() {
   } else {
     $("#home-card").innerHTML = `<div class="card"><p class="big">Your interview is not set up yet. Sondage will call you to pick a day.</p></div>`;
   }
+  const f = state.me.fellow || {};
+  const waiting = f.journal_prompts_waiting || 0;
+  if (!f.historian) {
+    $("#home-card").insertAdjacentHTML(next ? "beforeend" : "afterbegin", `<div class="card"><p class="label">Your historian</p><p class="big">Choose the person you'd like to talk with about your life.</p><button class="primary" data-go="historians">Choose my historian</button></div>`);
+  }
+  $("#home-card").insertAdjacentHTML("beforeend", `<div class="card"><p class="big">${waiting ? `${esc(callName(f.historian) || "Your historian")} left you ${waiting === 1 ? "a question" : `${waiting} questions`} in your journal.` : "Write down a memory whenever it comes to you."}</p><button ${waiting ? 'class="primary"' : ""} data-go="journal">Open my journal</button></div>`);
 }
 document.addEventListener("click", (e) => {
   const j = e.target.closest("[data-join]");
@@ -924,4 +931,272 @@ $("#sign-out").addEventListener("click", async () => {
 boot().catch((e) => {
   document.body.insertAdjacentHTML("beforeend", `<p class="problem">${esc(e.message)}</p>`);
   console.error(e);
+});
+
+// ---------------------------------------------------------------- my journal
+// Private by default. Unlike the sealed interview, entries can be changed or deleted.
+
+const journal = { data: null, editing: null, prompt: null, voice: null, removeVoice: false, rec: null, urls: [] };
+
+function freeJournalUrls() {
+  journal.urls.forEach((u) => URL.revokeObjectURL(u));
+  journal.urls = [];
+}
+
+async function loadJournal() {
+  show("journal");
+  freeJournalUrls();
+  $("#journal-entries").innerHTML = `<p class="small">Loading…</p>`;
+  try {
+    journal.data = await S.api("GET", "/api/v1/journal");
+  } catch {
+    $("#journal-prompts").innerHTML = "";
+    $("#journal-entries").innerHTML = `<p class="problem">We can't open your journal right now. Check that the internet is on.</p>`;
+    return;
+  }
+  const { prompts, entries } = journal.data;
+  $("#journal-prompts").innerHTML = prompts.map((p) => `
+    <div class="card prompt-card">
+      <p class="label">A question for you</p>
+      <p class="prompt-quote">“${esc(p.text)}”<span class="from">From ${esc(p.from)}</span></p>
+      <div class="buttons"><button class="primary" data-answer="${p.id}">Write about this</button><button class="quiet" data-dismiss="${p.id}">Not now</button></div>
+    </div>`).join("");
+  $("#journal-entries").innerHTML = entries.length
+    ? entries.map((e) => `
+      <article class="card entry">
+        <p class="when">${esc(longDate(e.written_on + "T12:00:00"))}${e.era ? ` · ${esc(e.era.title)}` : ""}<span class="${e.shared_with_historian ? "shared" : "private"}">${e.shared_with_historian ? `${esc(callName(journal.data.historian) || "Your historian")} can read this` : "Only you"}</span></p>
+        ${e.prompt ? `<p class="small">Answering: “${esc(e.prompt.text)}”</p>` : ""}
+        ${e.body ? `<p class="words">${esc(e.body)}</p>` : ""}
+        ${e.voice ? `<button data-play="${e.id}">▶ Listen to my voice</button><div data-audio="${e.id}"></div>` : ""}
+        <div class="buttons"><button data-edit="${e.id}">Change</button><button class="quiet" data-delete="${e.id}">Delete</button></div>
+      </article>`).join("")
+    : `<p class="empty">Nothing here yet. Press "Write something new" to start.</p>`;
+}
+
+$("#view-journal").addEventListener("click", async (ev) => {
+  const t = ev.target.closest("button");
+  if (!t) return;
+  if (t.id === "journal-new") return openWrite(null, null);
+  if (t.dataset.answer) return openWrite(null, journal.data.prompts.find((p) => String(p.id) === t.dataset.answer));
+  if (t.dataset.dismiss) {
+    await S.api("POST", `/api/v1/journal/prompts/${t.dataset.dismiss}/dismiss`).catch(() => {});
+    return loadJournal();
+  }
+  if (t.dataset.edit) return openWrite(journal.data.entries.find((e) => String(e.id) === t.dataset.edit), null);
+  if (t.dataset.delete) {
+    if (!confirm("Delete this from your journal?\n\nThis can't be undone.")) return;
+    await S.api("DELETE", `/api/v1/journal/${t.dataset.delete}`);
+    return loadJournal();
+  }
+  if (t.dataset.play) {
+    t.disabled = true;
+    t.textContent = "Opening…";
+    try {
+      const { type, bytes } = await S.apiBytes(`/api/v1/journal/${t.dataset.play}/voice`);
+      const url = URL.createObjectURL(new Blob([bytes], { type }));
+      journal.urls.push(url);
+      const box = $(`[data-audio="${t.dataset.play}"]`);
+      box.innerHTML = `<audio controls autoplay src="${url}"></audio>`;
+      t.remove();
+    } catch {
+      t.disabled = false;
+      t.textContent = "▶ Listen to my voice";
+      alert("We can't play this right now. Check that the internet is on.");
+    }
+  }
+});
+
+function openWrite(entry, prompt) {
+  show("write");
+  stopVoice();
+  journal.editing = entry;
+  journal.prompt = prompt || (entry?.prompt ? { id: entry.prompt.id, text: entry.prompt.text } : null);
+  journal.voice = null;
+  journal.removeVoice = false;
+  $("#write-title").textContent = entry ? "Change this entry" : prompt ? "Write about this" : "Write something new";
+  $("#write-prompt").hidden = !journal.prompt;
+  $("#write-prompt").innerHTML = journal.prompt ? `“${esc(journal.prompt.text)}”${prompt?.from ? `<span class="from">From ${esc(prompt.from)}</span>` : ""}` : "";
+  $("#write-body").value = entry?.body || "";
+  const eras = journal.data?.eras || [];
+  $("#write-era").innerHTML = `<option value="">Not sure, or about today</option>` + eras.map((e) => `<option value="${e.id}">${esc(e.title)} (${e.start_year}–${e.end_year || "now"})</option>`).join("");
+  $("#write-era").value = entry?.era?.id || "";
+  const h = callName(journal.data?.historian);
+  $("#write-share-label").textContent = h ? `Let ${h} read this` : "Let my historian read this";
+  // Answering the historian's own question: sharing is the natural default.
+  $("#write-share").checked = entry ? entry.shared_with_historian : !!prompt;
+  $("#write-error").hidden = true;
+  voiceUi(entry?.voice ? "existing" : "idle");
+  $("#write-body").focus();
+}
+
+function voiceUi(mode) {
+  $("#voice-idle").hidden = !(mode === "idle");
+  $("#voice-live").hidden = mode !== "live";
+  $("#voice-done").hidden = !(mode === "done" || mode === "existing");
+  $("#voice-again").textContent = mode === "existing" ? "Record a new one instead" : "Record again";
+  if (mode === "existing") $("#voice-preview").removeAttribute("src");
+  $("#voice-preview").hidden = mode === "existing";
+}
+
+async function startVoice() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const type = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((t) => MediaRecorder.isTypeSupported(t)) || "";
+    const mr = new MediaRecorder(stream, type ? { mimeType: type } : {});
+    const parts = [];
+    mr.ondataavailable = (e) => e.data.size && parts.push(e.data);
+    const t0 = Date.now();
+    const timer = setInterval(() => {
+      const s = Math.floor((Date.now() - t0) / 1000);
+      $("#voice-timer").textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+      if (s >= 600) stopVoice(true); // ten minutes at most per note
+    }, 250);
+    journal.rec = { mr, stream, timer, parts, done: new Promise((r) => (mr.onstop = r)) };
+    mr.start(1000);
+    $("#voice-timer").textContent = "0:00";
+    voiceUi("live");
+  } catch {
+    alert("We can't use the microphone. Check that it is plugged in, then try again.");
+  }
+}
+
+async function stopVoice(keep = false) {
+  const r = journal.rec;
+  if (!r) return;
+  journal.rec = null;
+  clearInterval(r.timer);
+  if (r.mr.state !== "inactive") r.mr.stop();
+  await r.done;
+  r.stream.getTracks().forEach((t) => t.stop());
+  if (!keep) return;
+  const blob = new Blob(r.parts, { type: r.mr.mimeType || "audio/webm" });
+  journal.voice = blob;
+  journal.removeVoice = false;
+  const url = URL.createObjectURL(blob);
+  journal.urls.push(url);
+  $("#voice-preview").src = url;
+  voiceUi("done");
+}
+
+$("#voice-start").addEventListener("click", startVoice);
+$("#voice-again").addEventListener("click", () => { journal.voice = null; startVoice(); });
+$("#voice-stop").addEventListener("click", () => stopVoice(true));
+$("#voice-remove").addEventListener("click", () => {
+  journal.voice = null;
+  journal.removeVoice = !!journal.editing?.voice;
+  voiceUi("idle");
+});
+const leaveWrite = () => { stopVoice(); loadJournal(); };
+$("#write-back").addEventListener("click", leaveWrite);
+$("#write-cancel").addEventListener("click", leaveWrite);
+
+const toBase64 = async (blob) => {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+};
+
+$("#write-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  if (journal.rec) await stopVoice(true);
+  const body = $("#write-body").value.trim();
+  const keepsVoice = journal.voice || (journal.editing?.voice && !journal.removeVoice);
+  if (!body && !keepsVoice) {
+    $("#write-error").textContent = "Write something, or record your voice, first.";
+    $("#write-error").hidden = false;
+    return;
+  }
+  $("#write-save").disabled = true;
+  $("#write-save").textContent = "Saving…";
+  try {
+    const entry = { body, era_id: $("#write-era").value || null, shared_with_historian: $("#write-share").checked, journal_prompt_id: journal.prompt?.id || null };
+    if (journal.voice) entry.voice = { base64: await toBase64(journal.voice), content_type: journal.voice.type };
+    if (journal.editing) await S.api("PATCH", `/api/v1/journal/${journal.editing.id}`, { entry, remove_voice: journal.removeVoice || undefined });
+    else await S.api("POST", "/api/v1/journal", { entry });
+    journal.voice = null;
+    await loadJournal();
+  } catch (ex) {
+    $("#write-error").textContent = `We couldn't save it: ${ex.message} Nothing is lost. Try again in a moment.`;
+    $("#write-error").hidden = false;
+  } finally {
+    $("#write-save").disabled = false;
+    $("#write-save").textContent = "Save in my journal";
+  }
+});
+
+// ---------------------------------------------------------------- choosing a historian
+// Choose up to three. When a historian you chose also chooses you, Sondage calls to confirm.
+
+async function loadHistorians() {
+  show("historians");
+  const box = $("#hist-body");
+  box.innerHTML = `<p class="small">Loading…</p>`;
+  let d;
+  try {
+    d = await S.api("GET", "/api/v1/historians");
+  } catch {
+    box.innerHTML = `<p class="problem">We can't show the historians right now. Check that the internet is on.</p>`;
+    return;
+  }
+  if (d.matched) {
+    $("#hist-title").textContent = "Your historian";
+    box.innerHTML = `<p class="big">${esc(d.matched.name)} is your historian. They will help you tell your story and do your interview.</p>${histCard(d.matched, { mine: true })}`;
+    return;
+  }
+  $("#hist-title").textContent = "Choose your historian";
+  const chosen = d.historians.filter((h) => h.chosen).length;
+  box.innerHTML = `
+    <p class="big">A historian is the person who will talk with you and record your story. Read about each one, and choose up to ${d.max_choices} you'd like to talk with.</p>
+    <p class="big">When one of them chooses you too, Sondage will call you to make sure. Then you're matched.</p>
+    <p class="stepcount">You have chosen ${chosen} of ${d.max_choices}.</p>
+    ${d.historians.map((h) => histCard(h, { full: chosen >= d.max_choices })).join("") || `<p class="empty">No historians are taking new people right now. Sondage will call you.</p>`}
+    <details class="card about-me">
+      <summary class="big">Tell historians about yourself</summary>
+      <p class="small">Historians see only your first name, the decade you were born, your hometown and what you write here.</p>
+      <form id="intro-form" class="form wide-form">
+        <label>A few lines about you<textarea name="intro" rows="4">${esc(d.intro || "")}</textarea></label>
+        <label>Languages you'd like to speak in<input name="languages" value="${esc(d.languages || "")}" placeholder="English, Spanish"></label>
+        <div class="buttons"><button class="primary" type="submit">Save</button><span class="saved" id="intro-saved" hidden>✓ Saved</span></div>
+      </form>
+    </details>`;
+}
+
+function histCard(h, { full = false, mine = false } = {}) {
+  const about = [["Speaks", h.languages], ["Knows about", h.regions], ["Interested in", h.specialties]]
+    .filter(([, v]) => v?.length).map(([k, v]) => `<dt>${k}</dt><dd>${esc(v.join(", "))}</dd>`).join("");
+  const name = callName(h.name);
+  return `
+    <article class="card hist-card ${h.chosen ? "chosen" : ""}">
+      ${h.wants_you ? `<p class="wants">${esc(name)} would like to work with you</p>` : ""}
+      <h3>${esc(h.name)}</h3>
+      ${h.headline ? `<p class="headline">${esc(h.headline)}</p>` : ""}
+      ${h.bio ? `<p class="bio">${esc(h.bio)}</p>` : ""}
+      ${about ? `<dl class="about">${about}</dl>` : ""}
+      ${mine ? "" : h.chosen
+        ? `<div class="buttons"><span class="chosen-mark">✓ You chose ${esc(name)}</span><button class="quiet" data-unchoose="${h.id}">Take back my choice</button></div>`
+        : `<div class="buttons"><button class="primary" data-choose="${h.id}" ${full ? "disabled" : ""}>I'd like to talk with ${esc(name)}</button></div>`}
+    </article>`;
+}
+
+$("#view-historians").addEventListener("click", async (ev) => {
+  const t = ev.target.closest("button[data-choose], button[data-unchoose]");
+  if (!t) return;
+  t.disabled = true;
+  try {
+    const r = t.dataset.choose
+      ? await S.api("POST", `/api/v1/historians/${t.dataset.choose}/choose`)
+      : await S.api("DELETE", `/api/v1/historians/${t.dataset.unchoose}/choose`);
+    if (r.mutual) alert("You both chose each other! Sondage will call you soon to make sure.");
+  } catch (ex) {
+    alert(ex.message);
+  }
+  loadHistorians();
+});
+$("#view-historians").addEventListener("submit", async (ev) => {
+  if (ev.target.id !== "intro-form") return;
+  ev.preventDefault();
+  const f = new FormData(ev.target);
+  await S.api("PATCH", "/api/v1/match_intro", { fellow: { match_intro: f.get("intro"), languages: f.get("languages") } });
+  $("#intro-saved").hidden = false;
 });

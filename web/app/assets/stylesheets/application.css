@@ -143,3 +143,11 @@ body.fellow-ui .masthead nav { font-size: 18px; }
 #safety h1 { font-size: 38px; }
 #safety button { font-size: 20px; padding: 16px 28px; }
 #safety #s-foot { font-size: 16px; }
+
+/* Journal and matching */
+.journal-prompt-quote { font-family: var(--serif, Georgia, serif); font-size: 22px; line-height: 1.4; margin: 0 0 6px; }
+.journal-entry .journal-body { font-family: var(--serif, Georgia, serif); font-size: 19px; line-height: 1.6; }
+.journal-entry audio { width: 100%; max-width: 480px; margin: 8px 0; }
+.historian-card.chosen, .fellow-card.chosen { border-color: #2f6b2a; box-shadow: 0 0 0 2px #e2eedb; }
+.plain-list { list-style: none; padding: 0; } .plain-list li { padding: 8px 0; border-bottom: 1px solid var(--rule); }
+form.inline { display: inline; }

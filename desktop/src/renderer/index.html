@@ -14,6 +14,7 @@
     <nav id="nav" hidden>
       <button data-go="home" class="navlink">Home</button>
       <button data-go="story" class="navlink">My life story</button>
+      <button data-go="journal" class="navlink">My journal</button>
       <button data-go="vault" class="navlink">My recordings</button>
       <button data-go="settings" class="navlink">Help</button>
     </nav>
@@ -263,6 +264,55 @@
           <span class="time" id="play-time">0:00</span>
         </div>
         <div id="listen-media"></div>
+      </div>
+    </section>
+
+    <!-- ============ My journal ============ -->
+    <section class="view" id="view-journal" hidden>
+      <div class="page">
+        <h1>My journal</h1>
+        <p class="big">Write down a memory whenever it comes to you, or say it out loud. Only you can read it, unless you choose to share it.</p>
+        <div id="journal-prompts"></div>
+        <div class="buttons"><button class="primary" id="journal-new">Write something new</button></div>
+        <h2>What I have written</h2>
+        <div id="journal-entries"></div>
+      </div>
+    </section>
+
+    <!-- ============ Writing in the journal (one screen) ============ -->
+    <section class="view" id="view-write" hidden>
+      <div class="page">
+        <p class="stepcount"><button class="quiet" id="write-back">← Back to my journal</button></p>
+        <h1 id="write-title">Write something new</h1>
+        <p class="prompt-quote" id="write-prompt" hidden></p>
+        <form id="write-form" class="form wide-form">
+          <label>What would you like to say?
+            <textarea name="body" rows="8" id="write-body" placeholder="Start anywhere. A smell, a song, a name…"></textarea>
+          </label>
+          <div class="voice-box" id="voice-box">
+            <p class="voice-label">Or say it out loud</p>
+            <div class="buttons" id="voice-idle"><button type="button" class="record" id="voice-start">● Record my voice</button></div>
+            <div class="buttons" id="voice-live" hidden><span class="voice-timer" id="voice-timer">0:00</span><button type="button" class="primary" id="voice-stop">■ Stop</button></div>
+            <div id="voice-done" hidden>
+              <audio id="voice-preview" controls></audio>
+              <div class="buttons"><button type="button" id="voice-again">Record again</button><button type="button" class="quiet" id="voice-remove">Remove the recording</button></div>
+            </div>
+          </div>
+          <label>Which part of your life is this about? <span class="small">(You can skip this.)</span>
+            <select name="era_id" id="write-era"></select>
+          </label>
+          <label class="tick"><input type="checkbox" name="shared" id="write-share"> <span id="write-share-label">Let my historian read this</span></label>
+          <p class="problem" id="write-error" hidden></p>
+          <div class="buttons"><button type="submit" class="primary" id="write-save">Save in my journal</button><button type="button" class="quiet" id="write-cancel">Cancel</button></div>
+        </form>
+      </div>
+    </section>
+
+    <!-- ============ Choosing a historian ============ -->
+    <section class="view" id="view-historians" hidden>
+      <div class="page">
+        <h1 id="hist-title">Choose your historian</h1>
+        <div id="hist-body"></div>
       </div>
     </section>
 

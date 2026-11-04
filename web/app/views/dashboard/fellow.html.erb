@@ -40,6 +40,21 @@
     <% if @interviews.empty? %><p>Your interview isn't set up yet. Sondage will call you to pick a day.</p><% end %>
   </div>
   <aside>
+    <% unless @fellow.historian %>
+      <article class="card">
+        <p class="eyebrow">Your historian</p>
+        <h3>Choose who you'd like to talk with</h3>
+        <p>Read about our historians and pick up to three.</p>
+        <%= link_to "Choose a historian", match_path, class: "button primary" %>
+      </article>
+    <% end %>
+    <article class="card">
+      <p class="eyebrow">Your journal</p>
+      <h3>Write down a memory</h3>
+      <% waiting = @fellow.journal_prompts.waiting.count %>
+      <p><%= waiting > 0 ? "You have #{waiting} #{'question'.pluralize(waiting)} waiting from your historian." : "Whenever something comes back to you, write it here. Only you can read it unless you share it." %></p>
+      <%= link_to "Open my journal", fellow_journal_entries_path(@fellow), class: "button" %>
+    </article>
     <article class="card">
       <p class="eyebrow">For your interview</p>
       <h3>The Sondage app</h3>

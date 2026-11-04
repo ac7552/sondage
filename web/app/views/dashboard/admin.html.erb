@@ -1,7 +1,7 @@
 <% page_title "Fellows" %>
 <p class="eyebrow">Admin</p>
 <h1>Fellows</h1>
-<div class="actions"><%= link_to "Add a Fellow", new_admin_fellow_path, class: "button primary" %><%= link_to "Edit intake questions", intake_questions_path, class: "button quiet" %></div>
+<div class="actions"><%= link_to "Add a Fellow", new_admin_fellow_path, class: "button primary" %><%= link_to "Edit intake questions", intake_questions_path, class: "button quiet" %><% n = MatchInterest.mutual.count %><%= link_to (n > 0 ? "Matching (#{n} to confirm)" : "Matching"), match_path, class: "button quiet" %></div>
 
 <table class="list" style="margin-top: 28px">
   <thead><tr><th>Fellow</th><th>Stage</th><th>Next meeting</th><th></th></tr></thead>

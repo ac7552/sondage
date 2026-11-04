@@ -7,6 +7,7 @@
   <%= link_to "Intake", fellow_intake_path(@fellow), class: "button quiet" %>
   <%= link_to "10x10 lists", fellow_ten_by_ten_path(@fellow), class: "button quiet" %>
   <%= link_to "Timeline versions", fellow_timeline_versions_path(@fellow), class: "button quiet" %>
+  <%= link_to "Journal", fellow_journal_entries_path(@fellow), class: "button quiet" %>
   <% if current_user.admin? %>
     <%= form_with url: stage_fellow_path(@fellow), method: :patch, style: "display:flex;gap:8px" do |f| %>
       <%= f.select :stage, Fellow::STAGES.map { |s| [Fellow::STAGE_LABELS[s], s] }, selected: @fellow.stage %>
@@ -14,6 +15,16 @@
     <% end %>
   <% end %>
 </div>
+
+<p class="small" style="margin-top:14px">Historian: <strong><%= @fellow.historian&.name || "not matched yet" %></strong>
+  <% if current_user.admin? %>
+    <%= form_with url: historian_fellow_path(@fellow), method: :patch, style: "display:inline-flex;gap:8px;margin-left:12px" do |f| %>
+      <%= f.select :historian_id, User.where(role: "historian").order(:name).map { |h| [h.name, h.id] }, include_blank: "— none —", selected: @fellow.historian_id %>
+      <%= f.submit "Set historian", class: "button quiet" %>
+    <% end %>
+    · <%= link_to "Matching", match_path %>
+  <% end %>
+</p>
 
 <div class="split" style="margin-top: 24px">
   <div>

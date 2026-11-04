@@ -1,0 +1,62 @@
+<% first = @fellow.display_name.split.first %>
+<% page_title @owner ? "My journal" : "#{first}'s journal" %>
+<% if @owner %>
+  <h1>My journal</h1>
+  <p class="lede">Write down a memory whenever it comes to you. You can change or delete anything here at any time.</p>
+<% else %>
+  <p class="eyebrow">Journal</p>
+  <h1><%= first %>'s journal</h1>
+  <p class="lede">You only see what <%= first %> chose to share with their historian. Everything else stays private to them.</p>
+<% end %>
+
+<% if @owner %>
+  <% if @prompts.any? %>
+    <h2>Questions for you</h2>
+    <% @prompts.each do |p| %>
+      <article class="card journal-prompt">
+        <p class="journal-prompt-quote">“<%= p.text %>”</p>
+        <p class="small muted">From <%= p.author.name %></p>
+        <div class="actions">
+          <%= link_to "Write about this", fellow_journal_entries_path(@fellow, prompt: p.id, anchor: "write"), class: "button primary" %>
+          <%= button_to "Not now", fellow_journal_prompt_path(@fellow, p), method: :delete, class: "link", form_class: "inline" %>
+        </div>
+      </article>
+    <% end %>
+  <% end %>
+  <h2 id="write">Write something new</h2>
+  <article class="card"><%= render "form", entry: @entry %></article>
+<% else %>
+  <article class="card">
+    <h3>Leave a question for <%= first %></h3>
+    <p class="small muted">It appears at the top of their journal. Ask one thing at a time, in plain words.</p>
+    <%= form_with model: [@fellow, JournalPrompt.new], class: "stack" do |f| %>
+      <div class="field"><%= f.text_area :text, rows: 2, placeholder: "What do you remember about your first job?", required: true %></div>
+      <div class="actions"><%= f.submit "Leave this question", class: "primary" %></div>
+    <% end %>
+    <% if @prompts.any? %>
+      <ul class="plain-list">
+        <% @prompts.each do |p| %>
+          <li>“<%= p.text %>” <span class="small muted">· <%= p.author.name %> · <%= p.answered? ? "answered" : p.dismissed_at ? "set aside" : "waiting" %></span>
+            <% if p.author_id == current_user.id || current_user.admin? %><%= button_to "Remove", fellow_journal_prompt_path(@fellow, p), method: :delete, class: "link small", form_class: "inline" %><% end %></li>
+        <% end %>
+      </ul>
+    <% end %>
+  </article>
+<% end %>
+
+<h2><%= @owner ? "What you have written" : "Shared entries" %></h2>
+<% @entries.each do |e| %>
+  <article class="card journal-entry">
+    <p class="eyebrow"><%= e.written_on.strftime("%A, %B %-d, %Y") %><% if e.era %> · <%= e.era.title %><% end %><% if @owner %> · <%= e.shared_with_historian ? "Your historian can read this" : "Only you" %><% end %></p>
+    <% if e.journal_prompt %><p class="small muted">Answering: “<%= e.journal_prompt.text %>”</p><% end %>
+    <% if e.body.present? %><div class="journal-body"><%= simple_format(e.body) %></div><% end %>
+    <% if e.voice.attached? %><audio controls preload="none" src="<%= voice_fellow_journal_entry_path(@fellow, e) %>"></audio><% end %>
+    <% if @owner %>
+      <div class="actions">
+        <%= link_to "Change", edit_fellow_journal_entry_path(@fellow, e), class: "button quiet" %>
+        <%= button_to "Delete", fellow_journal_entry_path(@fellow, e), method: :delete, class: "link", form_class: "inline", data: { turbo_confirm: "Delete this from your journal? This can't be undone." }, onclick: "return confirm('Delete this from your journal? This can\\'t be undone.')" %>
+      </div>
+    <% end %>
+  </article>
+<% end %>
+<% if @entries.empty? %><p class="muted"><%= @owner ? "Nothing here yet." : "#{first} hasn't shared anything yet." %></p><% end %>

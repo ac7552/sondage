@@ -1,0 +1,3 @@
+<p><%= @interest.fellow.display_name %> and <%= @interest.historian.name %> chose each other.</p>
+<p>Please call <%= @interest.fellow.display_name.split.first %> to make sure, then confirm the match.</p>
+<p><%= link_to "Open matching", match_url %></p>

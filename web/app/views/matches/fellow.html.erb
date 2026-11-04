@@ -1,0 +1,49 @@
+<% page_title "Choose your historian" %>
+<% if @fellow.historian %>
+  <h1>Your historian</h1>
+  <p class="lede"><%= @fellow.historian.name %> is your historian. They will help you tell your story and do your interview.</p>
+  <% if (p = @fellow.historian.historian_profile) %>
+    <article class="card historian-card"><h3><%= @fellow.historian.name %></h3><% if p.headline.present? %><p class="eyebrow"><%= p.headline %></p><% end %><%= simple_format(p.bio) %></article>
+  <% end %>
+<% else %>
+  <h1>Choose your historian</h1>
+  <p class="lede">A historian is the person who will talk with you and record your story. Read about each one. Choose up to <%= MatchInterest::MAX_FELLOW_CHOICES %> you'd like to talk with.</p>
+  <p>When a historian you chose also chooses you, Sondage will call you to make sure, and then you're matched.</p>
+
+  <article class="card">
+    <h3>Tell historians about yourself</h3>
+    <p class="small muted">Historians see only your first name, the decade you were born, your hometown and what you write here. They don't see your answers or your contact details.</p>
+    <%= form_with model: @fellow, url: match_intro_path, method: :patch, class: "stack" do |f| %>
+      <div class="field"><%= f.label :match_intro, "A few lines about you" %><%= f.text_area :match_intro, rows: 4, placeholder: "I grew up in Ponce and came to New York in 1953. I ran a bakery in the Bronx for thirty years." %></div>
+      <div class="field"><%= f.label :languages, "Languages you'd like to speak in" %><%= f.text_field :languages, placeholder: "Spanish, English" %></div>
+      <label class="choices"><span><%= f.check_box :seeking_historian %> Yes, historians may see this and choose me</span></label>
+      <div class="actions"><%= f.submit "Save", class: "primary" %></div>
+    <% end %>
+  </article>
+
+  <h2>Historians</h2>
+  <p class="small muted">You have chosen <%= @choices.size %> of <%= MatchInterest::MAX_FELLOW_CHOICES %>.</p>
+  <% @profiles.each do |p| %>
+    <% chosen = @choices.include?(p.user_id) %>
+    <article class="card historian-card <%= 'chosen' if chosen %>">
+      <% if @wanted_by.include?(p.user_id) %><p class="tag good">They would like to work with you</p><% end %>
+      <h3><%= p.user.name %></h3>
+      <% if p.headline.present? %><p class="eyebrow"><%= p.headline %></p><% end %>
+      <%= simple_format(p.bio) %>
+      <dl class="facts small">
+        <% if p.languages.present? %><dt>Speaks</dt><dd><%= p.languages %></dd><% end %>
+        <% if p.regions.present? %><dt>Knows about</dt><dd><%= p.regions %></dd><% end %>
+        <% if p.specialties.present? %><dt>Interested in</dt><dd><%= p.specialties %></dd><% end %>
+      </dl>
+      <div class="actions">
+        <% if chosen %>
+          <span class="tag good">✓ You chose <%= p.user.first_name %></span>
+          <%= button_to "Take back my choice", match_choose_path(historian_id: p.user_id, want: 0), class: "link", form_class: "inline" %>
+        <% else %>
+          <%= button_to "I'd like to talk with #{p.user.first_name}", match_choose_path(historian_id: p.user_id), class: "primary", form_class: "inline", disabled: @choices.size >= MatchInterest::MAX_FELLOW_CHOICES %>
+        <% end %>
+      </div>
+    </article>
+  <% end %>
+  <% if @profiles.empty? %><p class="muted">No historians are taking new people right now. Sondage will call you.</p><% end %>
+<% end %>

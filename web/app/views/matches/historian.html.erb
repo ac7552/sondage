@@ -1,0 +1,52 @@
+<% page_title "Matching" %>
+<p class="eyebrow">Historian</p>
+<h1>Find Fellows</h1>
+<p class="lede">Fellows who are looking for a historian. Choose the people you'd like to work with. When a Fellow has also chosen you, Sondage confirms the match with them by phone.</p>
+
+<div class="split">
+  <div>
+    <% @fellows.each do |f| %>
+      <% card = f.match_card %>
+      <article class="card fellow-card <%= 'chosen' if @mine.include?(f.id) %>">
+        <% if @wants_me.include?(f.id) %><p class="tag good"><%= card[:first_name] %> would like to talk with you</p><% end %>
+        <h3><%= card[:first_name] %></h3>
+        <p class="eyebrow"><%= [card[:birth_decade] && "Born in the #{card[:birth_decade]}", card[:birth_place]].compact.join(" · ") %></p>
+        <%= simple_format(card[:intro].presence || "No introduction yet.") %>
+        <% if card[:languages].any? %><p class="small muted">Speaks <%= card[:languages].to_sentence %></p><% end %>
+        <div class="actions">
+          <% if @mine.include?(f.id) %>
+            <span class="tag good">✓ You chose <%= card[:first_name] %></span>
+            <%= button_to "Take back", match_choose_path(fellow_id: f.id, want: 0), class: "link", form_class: "inline" %>
+          <% else %>
+            <%= button_to "I'd like to be #{card[:first_name]}'s historian", match_choose_path(fellow_id: f.id), class: "primary", form_class: "inline" %>
+          <% end %>
+        </div>
+      </article>
+    <% end %>
+    <% if @fellows.empty? %><p class="muted">No one is looking for a historian right now.</p><% end %>
+
+    <% if @matched.any? %>
+      <h2>Your Fellows</h2>
+      <ul class="plain-list">
+        <% @matched.each do |f| %>
+          <li><%= link_to f.display_name, fellow_path(f) %> · <%= link_to "Journal", fellow_journal_entries_path(f) %> · <%= link_to "Timeline", fellow_timeline_path(f) %></li>
+        <% end %>
+      </ul>
+    <% end %>
+  </div>
+  <aside>
+    <article class="card">
+      <h3>Your profile</h3>
+      <p class="small muted">This is what Fellows read when choosing a historian. Write plainly; many Fellows are in their 80s and 90s.</p>
+      <%= form_with model: @profile, url: match_profile_path, method: :patch, class: "stack" do |f| %>
+        <div class="field"><%= f.label :headline, "One line about you" %><%= f.text_field :headline, placeholder: "Oral historian of Puerto Rican New York" %></div>
+        <div class="field"><%= f.label :bio, "About you" %><%= f.text_area :bio, rows: 6 %></div>
+        <div class="field"><%= f.label :languages %><%= f.text_field :languages, placeholder: "English, Spanish" %></div>
+        <div class="field"><%= f.label :regions, "Places you know well" %><%= f.text_field :regions, placeholder: "New York, Puerto Rico" %></div>
+        <div class="field"><%= f.label :specialties, "Subjects you're drawn to" %><%= f.text_field :specialties, placeholder: "Migration, small business, music" %></div>
+        <label class="choices"><span><%= f.check_box :accepting %> I'm taking new Fellows</span></label>
+        <div class="actions"><%= f.submit "Save my profile", class: "primary" %></div>
+      <% end %>
+    </article>
+  </aside>
+</div>

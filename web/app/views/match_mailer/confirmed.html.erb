@@ -1,0 +1,8 @@
+<p>Hello <%= @user.first_name %>,</p>
+<% if @user.fellow? %>
+  <p><%= @other %> will be your historian. They will help you tell your life story and do your interview.</p>
+  <p>They may leave you some questions in your journal. You can answer them whenever you like.</p>
+<% else %>
+  <p>You are now <%= @other %>'s historian. You can read their profile and timeline, and leave questions in their journal.</p>
+<% end %>
+<p><%= link_to "Open Sondage", root_url %></p>

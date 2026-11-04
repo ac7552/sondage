@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld("sondage", {
   config: { get: () => call("config:get"), set: (c) => call("config:set", c), chooseVault: () => call("vault:choose") },
   auth: { signIn: (a) => call("auth:signIn", a), signOut: () => call("auth:signOut") },
   api: (method, path, body) => call("api", { method, path, body }),
+  apiBytes: (path) => call("api:bytes", { path }), // e.g. a journal voice note
   cableUrl: () => call("cable:url"),
   keys: {
     status: () => call("keys:status"),

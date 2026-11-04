@@ -27,7 +27,7 @@ class DesktopApiTest < ActionDispatch::IntegrationTest
     recipient = "age1" + "q" * 58
     put "/api/v1/keys", params: { signing_public_key: signing, age_recipient: recipient }, headers:, as: :json
     assert_response :success
-    get "/api/v1/me", headers:
+    get "/api/v1/me", headers: headers
     body = response.parsed_body
     assert_equal signing, body.dig("fellow", "signing_public_key")
     assert_equal @historian.signing_public_key, body.dig("interviews", 0, "historian", "signing_public_key")

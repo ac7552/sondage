@@ -6,7 +6,7 @@ class SafetyMailer < ApplicationMailer
     @recovery = recovery
     @fellow_name = recovery.fellow.display_name
     subject = contact.role == "self" ? "You asked to get your Sondage recordings back" : "#{@fellow_name.split.first} needs your help with their Sondage recordings"
-    mail to: contact.email, subject:
+    mail to: contact.email, subject: subject
   end
 
   def recovery_for_admin(admin, recovery)

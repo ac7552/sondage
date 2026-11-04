@@ -1,0 +1,17 @@
+<%= error_summary(entry) %>
+<%= form_with model: [@fellow, entry], url: entry.persisted? ? fellow_journal_entry_path(@fellow, entry) : fellow_journal_entries_path(@fellow), class: "stack journal-form", html: { multipart: true } do |f| %>
+  <%= f.hidden_field :journal_prompt_id %>
+  <% if entry.journal_prompt %>
+    <p class="journal-prompt-quote">“<%= entry.journal_prompt.text %>”<span class="small muted"> — <%= entry.journal_prompt.author.name %></span></p>
+  <% end %>
+  <div class="field"><%= f.label :body, "What would you like to write?" %><%= f.text_area :body, rows: 8 %></div>
+  <div class="row">
+    <div class="field"><%= f.label :written_on, "Date" %><%= f.date_field :written_on %></div>
+    <div class="field"><%= f.label :era_id, "Which part of your life is it about? (you can skip this)" %><%= f.select :era_id, @fellow.eras.map { |e| ["#{e.title} (#{e.start_year}–#{e.end_year || 'now'})", e.id] }, include_blank: "Not sure / today" %></div>
+  </div>
+  <div class="field"><%= f.label :voice, "Or add a voice recording (optional)" %><%= f.file_field :voice, accept: "audio/*" %>
+    <% if entry.persisted? && entry.voice.attached? %><label class="small"><%= check_box_tag :remove_voice, "1" %> Remove the voice recording</label><% end %></div>
+  <label class="choices"><span><%= f.check_box :shared_with_historian %> Let my historian read this<% if @fellow.historian %> (<%= @fellow.historian.name %>)<% end %></span></label>
+  <p class="hint small">If you don't tick this box, only you can read it. Not even Sondage.</p>
+  <div class="actions"><%= f.submit "Save in my journal", class: "primary" %><%= link_to "Cancel", fellow_journal_entries_path(@fellow), class: "link" %></div>
+<% end %>

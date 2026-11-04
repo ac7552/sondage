@@ -7,6 +7,7 @@ class Fellow < ApplicationRecord
 
   belongs_to :user
   belongs_to :admin, class_name: "User", optional: true
+  belongs_to :historian, class_name: "User", optional: true # the matched historian
   has_many :intake_answers, dependent: :destroy
   has_many :eras, -> { order(:start_year) }, dependent: :destroy
   has_many :events, -> { order(:year, :month) }, dependent: :destroy
@@ -18,6 +19,9 @@ class Fellow < ApplicationRecord
   has_many :audit_events # append-only; a Fellow with history cannot be deleted
   has_many :safety_contacts, -> { order(:role, :id) }, dependent: :destroy
   has_many :recoveries, -> { order(created_at: :desc) }, dependent: :destroy
+  has_many :journal_entries, dependent: :destroy
+  has_many :journal_prompts, -> { order(:created_at) }, dependent: :destroy
+  has_many :match_interests, dependent: :destroy
 
   # Sondage's own safety copy. Useless alone; encrypted at rest.
   encrypts :sondage_share
@@ -25,6 +29,17 @@ class Fellow < ApplicationRecord
   validates :stage, inclusion: { in: STAGES }
   validates :age_recipient, format: { with: /\Aage1[0-9a-z]{58}\z/ }, allow_nil: true
   delegate :name, :email, to: :user
+
+  validates :match_intro, length: { maximum: 1500 }
+  validate { errors.add(:historian, "must be a historian") if historian && !historian.historian? }
+
+  # What a historian sees before a match: no intake answers, no contact details.
+  def match_card
+    {
+      id:, first_name: display_name.split.first, birth_decade: birth_year && "#{birth_year / 10 * 10}s",
+      birth_place:, languages: languages.to_s.split(",").map(&:strip).reject(&:blank?), intro: match_intro
+    }
+  end
 
   def display_name = preferred_name.presence || user.name
   def stage_label = STAGE_LABELS.fetch(stage, stage.humanize)

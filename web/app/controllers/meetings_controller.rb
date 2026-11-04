@@ -5,7 +5,7 @@ class MeetingsController < ApplicationController
 
   def new
     kind = params[:kind].presence_in(Meeting::KINDS.keys) || "interview"
-    @meeting = @fellow.meetings.build(kind:, media_type: "audio", title: default_title(kind), scheduled_at: 1.week.from_now.change(hour: 10))
+    @meeting = @fellow.meetings.build(kind:, media_type: "audio", title: default_title(kind), scheduled_at: 1.week.from_now.change(hour: 10), host_id: (@fellow.historian_id if kind == "interview"))
   end
 
   def create

@@ -3,6 +3,7 @@ class Api::V1::BaseController < ActionController::API
   before_action :authenticate!
   rescue_from ActiveRecord::RecordNotFound, with: -> { render json: { error: "Not found" }, status: :not_found }
   rescue_from ActiveRecord::RecordInvalid, with: ->(e) { render json: { error: e.record.errors.full_messages.to_sentence }, status: :unprocessable_entity }
+  rescue_from ActionController::BadRequest, with: ->(e) { render json: { error: e.message }, status: :bad_request }
   rescue_from ActionController::ParameterMissing, with: ->(e) { render json: { error: e.message }, status: :bad_request }
 
   private

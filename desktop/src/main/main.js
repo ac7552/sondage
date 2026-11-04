@@ -148,6 +148,15 @@ handle("auth:signOut", async () => {
   return true;
 });
 handle("api", ({ method = "GET", path: p, body }) => api(method, p, body));
+// Raw bytes from the web app (a voice note in the journal), with the same sign-in.
+handle("api:bytes", async ({ path: p }) => {
+  if (!String(p).startsWith("/api/")) throw new Error("Not an API address");
+  const { serverUrl } = store.config();
+  const auth = store.readSecret("auth");
+  const res = await fetch(serverUrl + p, { headers: auth ? { Authorization: `Bearer ${auth.token}` } : {} });
+  if (!res.ok) throw new Error(`The Sondage server answered ${res.status}`);
+  return { type: res.headers.get("content-type") || "application/octet-stream", bytes: new Uint8Array(await res.arrayBuffer()) };
+});
 handle("cable:url", () => {
   const { serverUrl } = store.config();
   const auth = store.readSecret("auth");

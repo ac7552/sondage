@@ -8,7 +8,9 @@ class Api::V1::MeController < Api::V1::BaseController
       fellow: fellow && {
         id: fellow.id, name: fellow.display_name, stage: fellow.stage, signing_public_key: user.signing_public_key, age_recipient: fellow.age_recipient,
         safety_contacts: fellow.safety_contacts.map { |c| { name: c.name, email: c.email, role: c.role } },
-        pending_recovery_id: fellow.recoveries.pending.first&.id
+        pending_recovery_id: fellow.recoveries.pending.first&.id,
+        historian: fellow.historian&.name,
+        journal_prompts_waiting: fellow.journal_prompts.waiting.count
       },
       interviews: interviews.map { |m|
         {

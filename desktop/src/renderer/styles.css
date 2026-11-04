@@ -182,3 +182,32 @@ dl.facts dt { color: var(--muted); } dl.facts dd { margin: 0; word-break: break-
 #view-story .tl-world .label .years { font-size: 27px; }
 #view-story .tl-world .label .title { font-size: 30px; }
 #view-story .tl-intro .hint { font-size: 17px; }
+
+/* My journal */
+textarea { font: inherit; font-size: 24px; line-height: 1.5; padding: 16px 18px; border: 2px solid #b9b09f; border-radius: 12px; background: #fff; color: var(--ink); width: 100%; resize: vertical; }
+textarea:focus { outline: 4px solid #e0a95b; border-color: var(--ink); }
+.wide-form { max-width: 720px; }
+.prompt-quote { font-family: var(--serif); font-size: 30px; line-height: 1.35; margin: 0 0 18px; }
+.prompt-quote .from { display: block; font-family: var(--sans); font-size: 18px; color: var(--muted); margin-top: 6px; }
+.prompt-card { border-color: #e0a95b; background: #fdf6ea; }
+.entry .when { font-size: 18px; color: var(--muted); margin-bottom: 10px; }
+.entry .words { font-family: var(--serif); font-size: 24px; line-height: 1.55; white-space: pre-wrap; margin: 0 0 16px; }
+.entry .shared { display: inline-block; font-size: 16px; padding: 3px 12px; border-radius: 99px; background: var(--good-soft); color: var(--good); margin-left: 8px; }
+.entry .private { display: inline-block; font-size: 16px; padding: 3px 12px; border-radius: 99px; background: var(--paper-2); color: var(--muted); margin-left: 8px; }
+.entry audio, #voice-preview { width: 100%; max-width: 520px; margin: 4px 0 14px; }
+.voice-box { border: 2px dashed var(--rule); border-radius: 14px; padding: 18px 22px; }
+.voice-label { font-size: 21px; font-weight: 500; margin: 0 0 6px; }
+.voice-timer { font-family: var(--serif); font-size: 40px; min-width: 110px; font-variant-numeric: tabular-nums; align-self: center; }
+.voice-timer::before { content: "● "; color: var(--accent); animation: pulse 1.6s infinite; }
+label.tick { display: flex; align-items: center; gap: 14px; font-size: 22px; cursor: pointer; }
+label.tick input { width: 30px; height: 30px; accent-color: var(--ink); flex: none; }
+
+/* Choosing a historian */
+.hist-card h3 { font-family: var(--serif); font-weight: 400; font-size: 34px; margin: 0 0 4px; }
+.hist-card .headline { font-size: 20px; color: var(--ink-2); margin-bottom: 14px; }
+.hist-card .bio { font-size: 21px; line-height: 1.55; }
+.hist-card.chosen { border-color: var(--good); box-shadow: 0 0 0 3px var(--good-soft); }
+.hist-card .wants { display: inline-block; font-size: 18px; padding: 6px 14px; border-radius: 99px; background: var(--good-soft); color: var(--good); margin-bottom: 12px; }
+.hist-card .chosen-mark { font-size: 22px; color: var(--good); font-weight: 600; align-self: center; }
+dl.about { display: grid; grid-template-columns: auto 1fr; gap: 6px 18px; font-size: 19px; margin: 0 0 18px; }
+dl.about dt { color: var(--muted); } dl.about dd { margin: 0; }

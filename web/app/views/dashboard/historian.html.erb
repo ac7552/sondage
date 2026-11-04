@@ -3,6 +3,8 @@
 <h1>Your interviews</h1>
 <p class="lede">Read each profile and timeline, write your own questions, then open the interview room in this browser at the scheduled time.</p>
 
+<div class="actions"><%= link_to "Find Fellows to work with", match_path, class: "button quiet" %></div>
+
 <% if current_user.signing_public_key.blank? %>
   <p class="flash alert">Your browser hasn't registered a signing key yet. Open any interview room once, in the browser you'll use for the interview, and it will create one.</p>
 <% end %>
@@ -15,6 +17,7 @@
     <div class="actions">
       <%= link_to "Profile", fellow_path(m.fellow), class: "button quiet" %>
       <%= link_to "Timeline", fellow_timeline_path(m.fellow), class: "button quiet" %>
+      <%= link_to "Journal", fellow_journal_entries_path(m.fellow), class: "button quiet" %>
       <%= link_to "Your questions", meeting_path(m), class: "button quiet" %>
       <% unless m.sealed? %><%= link_to "Open interview room", room_meeting_path(m), class: "button primary" %><% end %>
     </div>

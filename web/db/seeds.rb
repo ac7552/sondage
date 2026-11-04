@@ -161,5 +161,58 @@ eleanor.meetings.find_or_create_by!(kind: "interview") do |m|
   NOTES
 end
 
+
+# ---------------------------------------------------------------- matching
+
+historian.create_historian_profile!(
+  headline: "Oral historian of Puerto Rican New York",
+  bio: "I grew up in East Harlem listening to my grandmother's stories. For twenty years I have recorded the lives of people who came to New York from Puerto Rico and the Caribbean. I speak English and Spanish, and I like to go slowly.",
+  languages: "English, Spanish", regions: "New York, Puerto Rico", specialties: "Migration, family businesses, music"
+) unless historian.historian_profile
+
+historian2 = User.find_or_create_by!(email: "historian2@sondage.test") { |u| u.name = "Grace Whitfield"; u.role = "historian"; u.password = PASSWORD }
+historian2.create_historian_profile!(
+  headline: "Life stories of working people in the American South",
+  bio: "I spent my career at a small-town library in Georgia, recording farmers, teachers, nurses and mill workers. I am a patient listener and I never rush.",
+  languages: "English", regions: "Georgia, the Carolinas", specialties: "Farming, nursing, the civil rights years"
+) unless historian2.historian_profile
+
+historian3 = User.find_or_create_by!(email: "historian3@sondage.test") { |u| u.name = "Dr. Daniel Okonkwo"; u.role = "historian"; u.password = PASSWORD }
+historian3.create_historian_profile!(
+  headline: "Historian of postwar immigration and city life",
+  bio: "I teach history and record the lives of people who built new homes in American cities after the war. I'm especially interested in neighborhoods, work, and faith.",
+  languages: "English, French", regions: "New York, Chicago, West Africa", specialties: "Immigration, neighborhoods, faith"
+) unless historian3.historian_profile
+
+# Eleanor chose Dr. Reyes, he chose her, and Sondage confirmed it.
+unless eleanor.historian
+  interest = MatchInterest.find_or_create_by!(fellow: eleanor, historian:) { |m| m.fellow_wants = true; m.historian_wants = true }
+  interest.confirm!(admin)
+end
+
+# A second Fellow, still looking: shows what historians see before a match.
+walter_user = User.find_or_create_by!(email: "walter@sondage.test") { |u| u.name = "Walter Brooks"; u.role = "fellow"; u.password = PASSWORD }
+walter = Fellow.find_or_create_by!(user: walter_user) do |f|
+  f.admin = admin
+  f.birth_year = 1938
+  f.birth_place = "Macon, Georgia"
+  f.seeking_historian = true
+  f.languages = "English"
+  f.match_intro = "I drove a city bus in Atlanta for 31 years. Before that I picked cotton with my father. I was at the march in Selma. My grandchildren keep asking me to write it down."
+end
+MatchInterest.find_or_create_by!(fellow: walter, historian: historian2) { |m| m.historian_wants = true }
+
+# ---------------------------------------------------------------- journal
+
+if eleanor.journal_entries.none?
+  eras = eleanor.eras.index_by(&:title)
+  prompt = eleanor.journal_prompts.create!(author: historian, text: "What did your mother cook on Sundays in Ponce? Who was at the table?")
+  eleanor.journal_prompts.create!(author: historian, text: "Do you remember the first time you saw snow?")
+  eleanor.journal_entries.create!(written_on: 9.days.ago.to_date, era: eras.values.first, shared_with_historian: true, journal_prompt: prompt,
+    body: "Arroz con gandules, always, and pernil if Papi had been paid. Abuela Tita sat at the head even though it was our house. My brother Tomás ate standing up so he could leave first to play ball.")
+  eleanor.journal_entries.create!(written_on: 3.days.ago.to_date, shared_with_historian: false,
+    body: "I found Luis's old bakery apron in the closet today. It still smells a little like anise. I didn't wash it.")
+end
+
 AuditEvent.record!("seed.loaded", actor: admin, fellow: eleanor) unless eleanor.audit_events.exists?(action: "seed.loaded")
-puts "Seeded. Sign in as admin@sondage.test, historian@sondage.test or eleanor@sondage.test with password #{PASSWORD}"
+puts "Seeded. Sign in as admin@sondage.test, historian@sondage.test, historian2@sondage.test, eleanor@sondage.test or walter@sondage.test with password #{PASSWORD}"
