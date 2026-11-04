@@ -218,3 +218,31 @@ body.fellow-ui .eyebrow { font-size: 14px; }
 .auth-photo .wordmark { font-size: 16px; color: #fff; }
 .auth-line { font: 600 50px/1 var(--serif); letter-spacing: -0.02em; text-transform: lowercase; }
 body.plain .wordmark { font-size: 15px; display: inline; }
+
+/* ================================================================ Air
+   Premium means room to breathe: wider gaps, fewer lines, one idea per block. */
+main { max-width: 1160px; padding: 88px 56px 140px; }
+.masthead { padding: 28px 56px; }
+.masthead nav { gap: 34px; }
+.masthead nav a.active::before, .masthead nav a.active::after { content: none; }
+.masthead nav a.active { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 9px; }
+h1 { margin-bottom: 30px; }
+h2 { margin: 88px 0 24px; }
+.lede { margin-bottom: 40px; }
+.eyebrow { margin-bottom: 18px; }
+.card { padding: 44px 48px; margin: 32px 0; }
+.card h3 { margin-bottom: 14px; }
+.card p { margin-bottom: 16px; }
+.card .actions, .actions { margin-top: 28px; gap: 16px; }
+.split { gap: 56px; }
+.grid { gap: 40px; }
+ol.stages { margin: 32px 0 72px; }
+ol.stages li { padding-top: 16px; }
+.stack { gap: 26px; }
+.photo-band { height: 280px; margin-bottom: 56px; border-radius: 8px; }
+table.list td, table.list th { padding: 18px 14px; }
+.journal-entry { padding: 48px 56px; }
+.journal-prompt-quote { margin-bottom: 14px; }
+.colophon { padding: 96px 56px 88px; }
+.auth-form { padding: 96px 80px; }
+.auth-form .stack { gap: 28px; margin-bottom: 28px; }

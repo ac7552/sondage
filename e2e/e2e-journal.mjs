@@ -110,6 +110,10 @@ await win.click(".page-entry:last-child [data-delete]");
 await win.waitForFunction((n) => document.querySelectorAll(".page-entry").length === n - 1, before);
 step(`deleted an entry (${before} → ${before - 1})`);
 await shot(win, "7-after-delete");
+await win.evaluate(() => document.querySelector("#journal-entries").scrollIntoView());
+await win.waitForTimeout(300);
+await shot(win, "7b-notebook");
+await win.evaluate(() => scrollTo(0, 0));
 
 // ---------------------------------------------------------------- choosing a historian
 await win.click('#nav [data-go="home"]');

@@ -372,7 +372,7 @@ async function loadHome() {
   const tiles = `
     <div class="home-tiles">
       <article class="home-tile">
-        <div class="home-tile-photo" style="background-image: url(photos/archive.jpg)"></div>
+        <div class="home-tile-photo" style="background-image: url(photos/family-outdoors.jpg)"></div>
         <div class="home-tile-body">
           <p class="label"><span class="n">[02]</span>My life story</p>
           <h3>Your photos, songs and memories, in order.</h3>
@@ -383,7 +383,7 @@ async function loadHome() {
         <div class="home-tile-body">
           <p class="label"><span class="n">[03]</span>My journal</p>
           ${prompt
-            ? `<p class="mini-question">“${esc(prompt.text)}”</p><p class="small">${esc(callName(prompt.from))} asked you${waiting > 1 ? `, and ${waiting - 1} more question${waiting > 2 ? "s" : ""}` : ""}.</p>`
+            ? `<p class="mini-question">“${esc(prompt.text)}”</p><p class="small">From ${esc(callName(prompt.from))}</p>`
             : `<h3>Write down a memory whenever it comes to you.</h3>`}
           <button ${prompt ? 'class="primary"' : ""} data-go="journal">Open my journal</button>
         </div>
@@ -1065,7 +1065,7 @@ async function loadJournal() {
   $("#journal-entries").innerHTML = entries.length
     ? entries.map((e) => `
       <article class="page-entry">
-        <p class="page-date">${esc(longDate(e.written_on + "T12:00:00"))}${e.era ? ` · ${esc(e.era.title)}` : ""}<span class="${e.shared_with_historian ? "shared" : "private"}">${e.shared_with_historian ? `${esc(callName(journal.data.historian) || "Your historian")} can read this` : "Only you"}</span></p>
+        <p class="page-date">${esc(longDate(e.written_on + "T12:00:00"))}${e.era ? ` · ${esc(e.era.title)}` : ""}<span class="${e.shared_with_historian ? "shared" : "private"}">${e.shared_with_historian ? "Shared" : "Only you"}</span></p>
         ${e.prompt ? `<p class="page-answering">Answering: “${esc(e.prompt.text)}”</p>` : ""}
         ${e.body ? `<p class="words">${esc(e.body)}</p>` : ""}
         ${e.voice ? `<button data-play="${e.id}">▶ Listen to my voice</button><div data-audio="${e.id}"></div>` : ""}
