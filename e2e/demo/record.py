@@ -24,15 +24,25 @@ with sync_playwright() as p:
     pg.route("**/node_modules/@rails/actioncable/**", lambda r: r.fulfill(body=shim, content_type="text/javascript"))
     pg.on("pageerror", lambda e: print("PAGEERROR", e))
     pg.goto("http://127.0.0.1:8765/desktop/src/renderer/index.html")
-    pg.wait_for_selector("#view-home:not([hidden]) .feature")
     pause = lambda s: pg.wait_for_timeout(int(s * 1000))
+    # Sign in
+    pg.wait_for_selector("#view-signin:not([hidden]) #signin-form")
+    pause(1.6)
     def move_click(sel, before=0.5):
         el = pg.locator(sel).first
         box = el.bounding_box()
         pg.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2, steps=18)
         pause(before)
         el.click()
-    pause(2.2)
+    pg.click('#signin-form input[name="email"]')
+    pg.keyboard.type("eleanor@sondage.test", delay=55)
+    pause(0.3)
+    pg.click('#signin-form input[name="password"]')
+    pg.keyboard.type("sondage-demo-2026", delay=45)
+    pause(0.5)
+    move_click('#signin-form button[type="submit"]')
+    pg.wait_for_selector("#view-home:not([hidden]) .feature")
+    pause(2.4)
     # Home -> journal
     move_click('#view-home [data-go="journal"]')
     pg.wait_for_selector("#view-journal:not([hidden]) .page-entry")

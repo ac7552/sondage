@@ -33,10 +33,11 @@
     if (path === "/api/v1/fellow/timeline") return timeline;
     return {};
   };
+  let signedIn = false; // the demo starts at the sign-in screen
   const receipt = { capsuleId: "demo", sealedAt: day(-20).toISOString(), session: { title: "Life history interview, part 1" }, receiptPath: "r", capsulePath: "c", present: true };
   window.sondage = {
-    config: { get: async () => ({ signedIn: true, serverUrl: location.origin + "/web/db", vaultDir: "~/Sondage recordings", user: { role: "fellow" } }), set: async () => true, chooseVault: async () => null },
-    auth: { signIn: async () => ({}), signOut: async () => true },
+    config: { get: async () => ({ signedIn, serverUrl: location.origin + "/web/db", vaultDir: "~/Sondage recordings", user: { role: "fellow" } }), set: async () => true, chooseVault: async () => null },
+    auth: { signIn: async () => { await wait(700); signedIn = true; return {}; }, signOut: async () => { signedIn = false; return true; } },
     api, apiBytes: async () => new ArrayBuffer(0), cableUrl: async () => "ws://localhost/cable",
     keys: { status: async () => ({ hasKeys: true, signingPublicKey: "DEMOKEY", fingerprint: "1A2B 3C4D 5E6F 7A8B" }), contacts: async () => [], create: async () => ({}), register: async () => ({}), mail: async () => true, restore: async () => ({}), shares: async () => [] },
     recovery: { start: async () => ({}), status: async () => null, cancel: async () => true },

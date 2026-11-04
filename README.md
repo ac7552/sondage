@@ -7,10 +7,10 @@ a way to get recordings back on a new computer or to an heir.
 
 ### Sondage in action
 
-[![Sondage desktop app: home, journal, life story and recordings](docs/demo.gif)](docs/demo.gif)
+[![Sondage desktop app: sign in, journal, life story and recordings](docs/demo.gif)](docs/demo.gif)
 
-The real desktop interface with demo data: answering a historian's question in the
-journal, the life story, and checking a saved recording. Re-record it with
+The real desktop interface with demo data: signing in, answering a historian's
+question in the journal, the life story, and checking a saved recording. Re-record it with
 `python3 e2e/demo/record.py`.
 
 ## What's here
