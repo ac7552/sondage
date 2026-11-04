@@ -1,7 +1,9 @@
 module ApplicationHelper
   # A script from public/sondage, at a path that changes whenever the scripts change.
   def sondage_script_tag(name)
-    tag.script(type: "module", src: "/sondage/v/#{SondageScriptsController.version}/#{name}")
+    # If the versioned copy can't load for any reason, fall back to the plain file.
+    fallback = "if(!this.dataset.retried){this.dataset.retried=1;var s=document.createElement('script');s.type='module';s.src='/sondage/#{name}?t='+Date.now();document.body.appendChild(s);console.warn('Sondage: loading /sondage/#{name} directly')}"
+    tag.script(type: "module", src: "/sondage/v/#{SondageScriptsController.version}/#{name}", onerror: fallback)
   end
 
   def page_title(text = nil)
