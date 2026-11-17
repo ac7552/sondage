@@ -3,6 +3,7 @@ Rails.application.routes.draw do
   root "dashboard#show"
 
   get "download" => "downloads#show", as: :download
+  get "download/:platform" => "downloads#get", as: :download_file, constraints: { platform: /mac|windows|linux/ }
   resource :signing_key, only: :update # the historian's browser registers its public key
 
   resources :intake_questions, except: :show

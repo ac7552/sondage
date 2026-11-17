@@ -25,12 +25,17 @@ question in the journal, the life story, and checking a saved recording. Re-reco
 
 ## Running it
 
-Needs Ruby 3.3+, Node 20+ and headphones.
+Needs Ruby 3.3+, Node 22+ and headphones.
 
 ```bash
 cd web && bin/setup && bin/rails server     # http://localhost:3000, with demo data
 cd desktop && npm install && npm start      # the Fellow's app
 ```
+
+People download the app from `/download` on the website, which offers the installer for
+their computer (Mac, Windows or Linux). Push a version tag (`git tag v0.1.0 && git push
+origin v0.1.0`) to build the installers and publish them; see
+[Releasing the app](docs/how-it-works.md#releasing-the-desktop-app).
 
 Demo accounts, password `sondage-demo-2026`: `admin@sondage.test`,
 `historian@sondage.test`, and `eleanor@sondage.test` (the Fellow; also signs in to the
@@ -67,6 +72,6 @@ matching: [docs/how-it-works.md](docs/how-it-works.md).
 A proof of concept. The sealing tests and end-to-end runs passed before the latest
 hardening changes; those changes, and the Rails app, haven't run yet, so expect small
 fixes on the first CI run. Before real Fellows use it: boot and test the Rails app, set
-up a TURN relay, sign the installers, choose a timestamp authority, get Sondage's answers
+up a TURN relay, get Apple and Windows signing certificates, choose a timestamp authority, get Sondage's answers
 on key custody and compressed video in writing, and test safety-copy setup with two or
 three real Fellows. [Full list](docs/how-it-works.md#before-this-goes-in-front-of-a-fellow-full-list).

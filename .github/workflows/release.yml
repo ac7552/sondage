@@ -1,0 +1,118 @@
+name: Release the desktop app
+
+# Push a version tag to build the installers and publish them:
+#
+#   git tag v0.1.0 && git push origin v0.1.0
+#
+# The download page (/download) links to github.com/ac7552/sondage/releases/latest,
+# so a new release is what everyone downloads from then on. "Run workflow" on the
+# Actions tab builds the installers without publishing, to try them first.
+#
+# Repository settings this uses (Settings → Secrets and variables → Actions):
+#   Variable  SONDAGE_SERVER_URL      the web app's address, built into the app. Required for a release.
+#   Secrets for a Mac app that opens without warnings (Apple Developer account):
+#     MAC_CERTIFICATE              base64 of the "Developer ID Application" .p12
+#     MAC_CERTIFICATE_PASSWORD
+#     APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID   for notarization
+#   Secrets for a signed Windows installer:
+#     WINDOWS_CERTIFICATE          base64 of the code-signing .pfx
+#     WINDOWS_CERTIFICATE_PASSWORD
+# Without them the installers are built unsigned, and Macs and Windows warn before opening them.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: Mac, os: macos-latest, args: "--mac --universal" }
+          - { name: Windows, os: windows-latest, args: "--win --x64" }
+          - { name: Linux, os: ubuntu-latest, args: "--linux AppImage --x64" }
+    defaults:
+      run:
+        working-directory: desktop
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci
+      - run: npm test
+
+      - name: Version from the tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: npm version --no-git-tag-version --allow-same-version "${GITHUB_REF_NAME#v}"
+
+      - name: Check the server address
+        env:
+          SONDAGE_SERVER_URL: ${{ vars.SONDAGE_SERVER_URL }}
+        run: |
+          if [ -z "$SONDAGE_SERVER_URL" ] && [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "::error::Set the SONDAGE_SERVER_URL repository variable first: a released app would otherwise try to sign in to localhost."
+            exit 1
+          fi
+          [ -z "$SONDAGE_SERVER_URL" ] && echo "::warning::SONDAGE_SERVER_URL isn't set; this test build signs in to localhost."
+          true
+
+      - name: Build the installer
+        env:
+          SONDAGE_SERVER_URL: ${{ vars.SONDAGE_SERVER_URL }}
+          MAC_CERTIFICATE: ${{ secrets.MAC_CERTIFICATE }}
+          MAC_CERTIFICATE_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          case "$RUNNER_OS" in
+            macOS)   export CSC_LINK="$MAC_CERTIFICATE" CSC_KEY_PASSWORD="$MAC_CERTIFICATE_PASSWORD" ;;
+            Windows) export CSC_LINK="$WINDOWS_CERTIFICATE" CSC_KEY_PASSWORD="$WINDOWS_CERTIFICATE_PASSWORD" ;;
+          esac
+          if [ -z "${CSC_LINK:-}" ]; then
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+            echo "::warning::No signing certificate for $RUNNER_OS: building an unsigned installer."
+          fi
+          # Notarization runs only when all three Apple values are present.
+          [ -z "$APPLE_ID" ] && unset APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
+          npx electron-builder ${{ matrix.args }} --publish never -c.extraMetadata.sondageServerUrl="$SONDAGE_SERVER_URL"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ matrix.name }}
+          path: |
+            desktop/dist/Sondage-*
+            desktop/dist/latest*.yml
+            !desktop/dist/*.blockmap
+          if-no-files-found: error
+
+  publish:
+    name: Publish the release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          ls -la dist
+          gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --title "Sondage ${TAG#v}" --generate-notes --latest

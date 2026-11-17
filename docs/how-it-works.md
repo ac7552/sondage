@@ -62,6 +62,47 @@ node e2e-call.mjs            # full interview; screenshots in e2e/out/
 of date. CI runs both, the desktop tests on macOS, Windows and Linux, the Rails tests,
 and the end-to-end tests under xvfb.
 
+## Releasing the desktop app
+
+The website's `/download` page offers the installer for the visitor's computer, with the
+others below it and plain installation steps. Its buttons go to `/download/mac`,
+`/download/windows` and `/download/linux`, which redirect to the newest GitHub release:
+
+| Computer | File | Notes |
+| --- | --- | --- |
+| Mac | `Sondage-mac.dmg` | One app for Apple Silicon and Intel Macs, macOS 12 or later |
+| Windows | `Sondage-windows.exe` | Installs itself and opens, no choices; Windows 10 or later |
+| Linux | `Sondage-linux.AppImage` | 64-bit |
+
+To release a version:
+
+1. Once: set the repository variable `SONDAGE_SERVER_URL` (Settings → Secrets and
+   variables → Actions → Variables) to the web app's address. It's built into the app, so
+   people never type it. A release refuses to build without it.
+2. Tag and push: `git tag v0.1.0 && git push origin v0.1.0`. `.github/workflows/release.yml`
+   runs the tests, builds all three installers on Mac, Windows and Linux machines, and
+   publishes them as a GitHub release. From then on `/download` hands out that version.
+
+"Run workflow" on the Actions tab builds the installers without publishing, to try them.
+Locally, `npm run dist:mac` (on a Mac), `dist:win` or `dist:linux` in `desktop/` builds one
+into `desktop/dist/`.
+
+**Signing.** Without certificates the installers are unsigned. On a Mac that's a real
+obstacle for this audience: recent macOS won't open an unsigned app from the Finder at all
+without a trip to System Settings → Privacy & Security → Open Anyway. Windows shows a
+"Windows protected your PC" screen. To sign, add these repository secrets:
+
+- Mac (needs an Apple Developer account): `MAC_CERTIFICATE` (base64 of the Developer ID
+  Application `.p12`), `MAC_CERTIFICATE_PASSWORD`, and for notarization `APPLE_ID`,
+  `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`.
+- Windows: `WINDOWS_CERTIFICATE` (base64 of the `.pfx`) and `WINDOWS_CERTIFICATE_PASSWORD`.
+
+The Mac app asks for the microphone and camera with its own explanation
+(`NSMicrophoneUsageDescription`), and its hardened-runtime entitlements are in
+`desktop/build/entitlements.mac.plist`. To host the files somewhere other than GitHub,
+set `DESKTOP_DOWNLOAD_BASE` on the web app (or `DESKTOP_MAC_URL` and so on, one at a time),
+and `DESKTOP_VERSION` to show the version on the page.
+
 ## The guarantees
 
 **Unadulterated.** The live call is only for talking. Each person's microphone is
@@ -211,7 +252,7 @@ The apps use photographs from sondagestandard.com. Download them once with `bash
 
 - **Boot and test the Rails app.** See above.
 - **TURN server.** Without one (coturn, via `TURN_URL`, `TURN_USERNAME`, `TURN_PASSWORD`), calls between some home networks won't connect.
-- **Signed installers** with Apple notarization and a Windows certificate (for example with electron-builder). Then point `DESKTOP_*_URL` at them for the download page.
+- **Signing certificates.** Installers build and publish today, but unsigned. Add an Apple Developer ID and a Windows code-signing certificate (see [Releasing the desktop app](#releasing-the-desktop-app)) so they open without warnings.
 - **The historian's browser** now keeps unsent chunks in its private file storage (OPFS) until the Fellow's app confirms them, and sends them again after a reload. Browsers without OPFS fall back to memory, as before.
 - **Timestamp authority:** choose one for production and record its CA certificate alongside the verifier.
 - **Safety copies:** replacing a helper later needs a new key for future recordings (older recordings keep the old one). There's no key history yet; build one (in the account and in each capsule's manifest) before the first rotation, so older capsules still verify against an outside record. Sondage should confirm that holding one of four copies, and being required for every recovery, fits "Sondage retains no keys".

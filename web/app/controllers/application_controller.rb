@@ -1,7 +1,7 @@
 class ApplicationController < ActionController::Base
   before_action :authenticate_user!
   # Older browsers can still reset a password and approve a safety request.
-  allow_browser versions: :modern, if: -> { !devise_controller? && controller_name != "safety" }
+  allow_browser versions: :modern, if: -> { !devise_controller? && !controller_name.in?(%w[safety downloads]) }
   layout -> { devise_controller? ? "plain" : "application" }
 
   helper_method :can_edit_fellow?

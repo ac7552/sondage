@@ -10,3 +10,4 @@ web/public/downloads/*
 !web/public/downloads/.keep
 web/config/master.key
 .DS_Store
+desktop/dist/

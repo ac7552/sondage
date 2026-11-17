@@ -24,9 +24,19 @@ export function writeConfig(patch) {
   return next;
 }
 
+// A downloaded app signs in to the address it was built for (package.json
+// "sondageServerUrl", set by the release build); development uses localhost.
+function builtInServerUrl() {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(app.getAppPath(), "package.json"), "utf8")).sondageServerUrl || null;
+  } catch {
+    return null;
+  }
+}
+
 export function defaults() {
   return {
-    serverUrl: process.env.SONDAGE_SERVER_URL || "http://localhost:3000",
+    serverUrl: process.env.SONDAGE_SERVER_URL || builtInServerUrl() || "http://localhost:3000",
     vaultDir: process.env.SONDAGE_VAULT_DIR || path.join(app.getPath("documents"), "Sondage Vault"),
     tsaUrl: process.env.SONDAGE_TSA_URL ?? "https://freetsa.org/tsr",
   };

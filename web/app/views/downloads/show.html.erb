@@ -1,19 +1,65 @@
-<% page_title "Download the app" %>
-<div class="narrow">
-  <p class="eyebrow">For the interview</p>
-  <h1>The Sondage app</h1>
-  <p class="lede">Your interview is recorded on your own computer, exactly as you sound, and sealed so that only you can open it. Nothing is sent to Sondage except a receipt.</p>
-  <div class="actions">
-    <%= link_to "Download for #{{ mac: 'Mac', windows: 'Windows', linux: 'Linux' }[@platform]}", @downloads[@platform], class: "button primary" %>
-  </div>
-  <p class="small muted">Also for <% (@downloads.keys - [@platform]).each_with_index do |p, i| %><%= ", " if i > 0 %><%= link_to({ mac: "Mac", windows: "Windows", linux: "Linux" }[p], @downloads[p]) %><% end %>.</p>
+<% page_title "Download the Sondage app" %>
+<% content_for :head, stylesheet_link_tag("downloads") %>
+<% main = @platforms[@platform] %>
+<div class="download-page">
+  <section class="dl-hero">
+    <%= image_tag "app-icon.png", alt: "", class: "dl-icon", width: 112, height: 112 %>
+    <h1>The Sondage app</h1>
+    <p class="lede">Your interview is recorded on your own computer and locked so only you can open it. You'll also find your journal and your life story in it.</p>
 
-  <h2>What happens next</h2>
-  <ol>
-    <li>Open the app and sign in with the same email and password you use here.</li>
-    <li>The app creates your key and gives you three recovery shares to print. Give them to people you trust: any two can restore your key.</li>
-    <li>Check your microphone with headphones on, a day or two before the interview.</li>
-    <li>At the scheduled time, press <em>Join interview</em>.</li>
-  </ol>
-  <p class="small muted">Someone from Sondage can do this setup with you on a call. Just ask.</p>
+    <% if @phone %>
+      <p class="dl-phone">Sondage runs on a computer, not a phone or tablet. Open this page on your Mac or PC, or send yourself the link: <strong><%= request.base_url %><%= download_path %></strong></p>
+    <% else %>
+      <%= link_to "Download for #{main[:name]}", download_file_path(@platform), class: "button primary dl-main" %>
+      <p class="dl-meta"><%= [ ("Version #{@version}" if @version), main[:needs] ].compact.join(" · ") %></p>
+    <% end %>
+  </section>
+
+  <section class="dl-platforms" aria-label="Every version">
+    <% @platforms.each do |key, p| %>
+      <div class="dl-platform <%= 'is-current' if key == @platform && !@phone %>">
+        <p class="dl-name"><%= p[:name] %></p>
+        <p class="dl-needs"><%= p[:needs] %></p>
+        <%= link_to "Download", download_file_path(key), class: "button #{'primary' if key == @platform && !@phone}" %>
+      </div>
+    <% end %>
+  </section>
+
+  <section class="dl-steps">
+    <h2>Installing it</h2>
+    <% steps = {
+         mac: [
+           "Open <strong>Sondage-mac.dmg</strong>. It's in your Downloads folder.",
+           "Drag the Sondage picture onto the <strong>Applications</strong> folder next to it.",
+           "Open Sondage from your Applications folder. The first time, your Mac asks if you're sure: click <strong>Open</strong>.",
+           "Sign in with the same email and password you use on this website."
+         ],
+         windows: [
+           "Open <strong>Sondage-windows.exe</strong>. It's in your Downloads folder.",
+           "Sondage installs itself and opens. There's nothing to choose.",
+           "Next time, open it from the Sondage picture on your desktop.",
+           "Sign in with the same email and password you use on this website."
+         ],
+         linux: [
+           "Find <strong>Sondage-linux.AppImage</strong> in your Downloads folder.",
+           "Right-click it, choose <strong>Properties</strong>, and allow it to run as a program.",
+           "Open it, and sign in with the same email and password you use on this website."
+         ]
+       } %>
+    <ol class="dl-list">
+      <% steps[@phone ? :mac : @platform].each do |s| %><li><%= s.html_safe %></li><% end %>
+    </ol>
+    <% (@platforms.keys - [ @phone ? :mac : @platform ]).each do |key| %>
+      <details class="dl-other">
+        <summary>Installing on <%= @platforms[key][:name] %></summary>
+        <ol class="dl-list"><% steps[key].each do |s| %><li><%= s.html_safe %></li><% end %></ol>
+      </details>
+    <% end %>
+  </section>
+
+  <section class="dl-next">
+    <h2>Once you've signed in</h2>
+    <p>The app helps you choose two people you trust to keep a safety copy of your key, so you can always get your recordings back. Then it checks your headphones and microphone. On the day of your interview, open the app and press <strong>Start my interview</strong>.</p>
+    <p class="dl-help">Someone from Sondage can do all of this with you on a call. Just ask.</p>
+  </section>
 </div>

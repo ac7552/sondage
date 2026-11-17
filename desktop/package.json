@@ -10,8 +10,12 @@
   },
   "scripts": {
     "start": "electron .",
-    "test": "node --test test/*.test.js",
-    "verify": "node bin/sondage-verify.js"
+    "test": "node --test \"test/*.test.js\"",
+    "verify": "node bin/sondage-verify.js",
+    "dist": "electron-builder --publish never",
+    "dist:mac": "electron-builder --mac --universal --publish never",
+    "dist:win": "electron-builder --win --x64 --publish never",
+    "dist:linux": "electron-builder --linux AppImage --x64 --publish never"
   },
   "license": "UNLICENSED",
   "private": true,
@@ -22,6 +26,83 @@
     "tar": "^7.5.22"
   },
   "devDependencies": {
-    "electron": "^45.2.2"
+    "electron": "^45.2.2",
+    "electron-builder": "^26.18.0"
+  },
+  "sondageServerUrl": "",
+  "author": {
+    "name": "Sondage"
+  },
+  "build": {
+    "appId": "com.sondage.desktop",
+    "productName": "Sondage",
+    "copyright": "Sondage",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "bin/**/*",
+      "package.json",
+      "!**/*.map"
+    ],
+    "asar": true,
+    "mac": {
+      "target": [
+        {
+          "target": "dmg"
+        },
+        {
+          "target": "zip"
+        }
+      ],
+      "category": "public.app-category.lifestyle",
+      "artifactName": "Sondage-mac.${ext}",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Sondage records your voice for your interview, on this computer only.",
+        "NSCameraUsageDescription": "Sondage shows your face to your interviewer during a video interview."
+      }
+    },
+    "dmg": {
+      "title": "Install Sondage",
+      "artifactName": "Sondage-mac.${ext}"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "Sondage-windows.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "runAfterFinish": true,
+      "createDesktopShortcut": "always",
+      "shortcutName": "Sondage",
+      "artifactName": "Sondage-windows.${ext}"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "AudioVideo",
+      "artifactName": "Sondage-linux.${ext}"
+    },
+    "publish": null
   }
 }
