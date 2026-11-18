@@ -1079,9 +1079,10 @@ async function endAndDeliver() {
     const results = await S.outbox.flush();
     const uploads = results.filter((r) => r.kind === "upload");
     const cloudOk = storage.connected && uploads.length > 0 && uploads.every((r) => r.ok);
-    step("cloud", "done", cloudOk ? "Arrived, and checked." : storage.connected ? "Not finished yet. It will finish on its own when the internet is on." : "Not connected. Ask Sondage to help connect your Dropbox.");
+    // A tick only for what actually happened; the rest is retried on its own.
+    step("cloud", cloudOk ? "done" : "waiting", cloudOk ? "Arrived, and checked." : storage.connected ? "Not finished yet. It will finish on its own when the internet is on." : "Not connected. Ask Sondage to help connect your Dropbox.");
     const mail = results.find((r) => r.kind === "email");
-    step("email", "done", mail?.ok ? "Sent." : "It will be sent when the internet is on.");
+    step("email", mail?.ok ? "done" : "waiting", mail?.ok ? "Sent." : "It will be sent when the internet is on.");
 
     setTimeout(teardownRoom, 1500);
     $("#seal-title").textContent = "Your Sitting is saved.";

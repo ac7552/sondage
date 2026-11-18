@@ -644,3 +644,6 @@ button.wide { width: 100%; }
 
 /* First version: the Sitting's countdown turns quietly red when the time is up. */
 .timer.ended { color: var(--accent); }
+/* A step that will finish on its own later (no internet, or not connected yet). */
+.seal-steps li.waiting { color: var(--ink); }
+.seal-steps li.waiting .mark { border-style: dashed; border-color: var(--muted); }
