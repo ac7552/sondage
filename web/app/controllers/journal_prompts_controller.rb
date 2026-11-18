@@ -1,5 +1,6 @@
 # Questions the historian or an admin leaves in the Fellow's journal.
 class JournalPromptsController < ApplicationController
+  requires_feature :journal
   before_action :set_fellow
 
   def create

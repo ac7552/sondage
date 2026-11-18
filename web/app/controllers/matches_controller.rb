@@ -2,6 +2,7 @@
 # like; a historian chooses the Fellows they'd like to work with. When both say
 # yes, an admin confirms the match (usually after a phone call with the Fellow).
 class MatchesController < ApplicationController
+  requires_feature :matching
   def show
     case current_user.role
     when "fellow" then fellow_page

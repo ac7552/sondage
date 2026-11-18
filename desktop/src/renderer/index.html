@@ -355,11 +355,35 @@
     </section>
 
     <!-- ============ Help and settings ============ -->
+    <!-- ============ Setup (first version): where Sittings are kept ============ -->
+    <section class="view" id="view-storage" hidden>
+      <div class="page">
+        <p class="stepcount">Getting set up</p>
+        <h1>Where your Sittings are kept</h1>
+        <p class="big">Every Sitting is saved on this computer, in a folder called <strong>vault</strong> on your desktop. A second copy goes to your own Dropbox, so nothing is lost if something happens to this computer.</p>
+        <ul class="people" id="storage-list"></ul>
+        <p class="problem" id="storage-error" hidden></p>
+        <div class="buttons">
+          <button class="primary" id="storage-connect">Connect my Dropbox</button>
+          <button class="quiet" id="storage-skip">Not now</button>
+        </div>
+        <p class="small">Dropbox opens in your web browser. Sign in, then press <strong>Allow</strong>. Sondage can only see its own folder in your Dropbox, and never keeps your sign-in.</p>
+      </div>
+    </section>
+
     <section class="view" id="view-settings" hidden>
       <div class="page">
         <h1>Help</h1>
         <p class="big">Need help? Call your Sondage helper. They can walk you through anything.</p>
-        <div data-for="fellow">
+        <div data-for="fellow" id="storage-help">
+          <h2>Where your Sittings are kept</h2>
+          <ul class="people" id="storage-help-list"></ul>
+          <div class="buttons">
+            <button id="storage-help-connect" hidden>Connect my Dropbox</button>
+            <button class="quiet" id="storage-help-open">Show the folder on this computer</button>
+          </div>
+        </div>
+        <div data-for="fellow" id="safety-help">
           <h2>People who can help you get your recordings back</h2>
           <ul class="people" id="helpers-list"></ul>
           <button id="resend-safety">Send their emails again</button>

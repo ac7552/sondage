@@ -17,6 +17,12 @@ const users = {
   historian: { id: 2, name: "Dr. Samuel Reyes", email: "historian@sondage.test", role: "historian", signing_public_key: null },
 };
 const fellow = { id: 1, age_recipient: null };
+// Features switched on, like the web app's SONDAGE_FEATURES. "all" (the default here)
+// keeps the older tests' journey; e2e-sitting.mjs runs with none, the first version.
+const FEATURE_NAMES = ["intake", "ten_by_ten", "stages", "timeline", "journal", "matching", "safety_copies", "heirs", "sealed_capsules", "recordings_vault", "device_check", "room_checklist", "record_video"];
+const features = (process.env.SONDAGE_FEATURES ?? "all") === "all" ? FEATURE_NAMES : process.env.SONDAGE_FEATURES.split(",").filter(Boolean);
+const sittingMinutes = +(process.env.SITTING_MINUTES || 60);
+const sittingsReported = [];
 const meeting = { id: 1, title: "Life history interview with Eleanor Ruiz", media_type: process.env.MEDIA || "video", status: "scheduled", scheduled_at: new Date(Date.now() + 3600e3).toISOString() };
 const tokens = new Map(); // token -> "fellow" | "heir"
 users.heir = { id: 9, name: "Ana Ruiz", email: "ana@example.com", role: "heir", password: "heir-demo-2026" };
@@ -119,11 +125,12 @@ const server = http.createServer(async (req, res) => {
   if (p === "/api/v1/me") {
     return json(res, 200, {
       user: { id: 3, name: users.fellow.name, email: users.fellow.email, role: "fellow" },
-      fellow: { id: 1, name: users.fellow.name, stage: "interview", signing_public_key: users.fellow.signing_public_key, age_recipient: fellow.age_recipient,
+      features, sitting: { minutes: sittingMinutes }, storage: { dropbox_app_key: process.env.DROPBOX_APP_KEY || null },
+      fellow: { id: 1, name: users.fellow.name, stage: "interview", season: { key: "2027-ruiz-eleanor", given_name: "Eleanor", surname: "Ruiz", convocation_year: 2027 }, signing_public_key: users.fellow.signing_public_key, age_recipient: fellow.age_recipient,
         safety_contacts: safety.contacts.map(({ id, name, email, role, heir }) => ({ id, name, email, role, heir: !!heir })), pending_recovery_id: safety.recoveries.find((r) => r.status === "pending")?.id || null,
         historian: hist.matched?.name || null, journal_prompts_waiting: waitingPrompts().length, next_journal_prompt: waitingPrompts()[0] || null, journal_entries_count: jr.entries.length,
         last_journal_entry: jr.entries.length ? (({ written_on, body, voice }) => ({ written_on, body: (body || "").slice(0, 600), voice: !!voice }))(jr.entries[jr.entries.length - 1]) : null },
-      interviews: [{ ...meeting, part: 1, parts: 1, historian: { name: users.historian.name, signing_public_key: users.historian.signing_public_key }, capsule: null, ...iceFor(3) }],
+      interviews: [{ ...meeting, ...(features.includes("sealed_capsules") ? { part: 1, parts: 1 } : { part: 3, sitting: 3, parts: 3 }), historian: { name: users.historian.name, signing_public_key: users.historian.signing_public_key }, capsule: null, ...iceFor(3) }],
     });
   }
   if (p === "/api/v1/keys" && req.method === "PUT") {
@@ -181,6 +188,16 @@ const server = http.createServer(async (req, res) => {
   }
   if (p === "/api/v1/match_intro") { const b = await body(req); hist.intro = b.fellow.match_intro; hist.languages = b.fellow.languages; log("matching: intro saved"); return json(res, 204, {}); }
   if (p === "/test/confirm-match") { const h = hist.list.find((r) => r.chosen && r.wants_you); hist.matched = { ...h }; delete hist.matched.chosen; delete hist.matched.wants_you; log(`matching: admin confirmed ${h.name}`); return json(res, 200, {}); }
+  // First version: the Senior Fellow's app reports the Sitting, and Sondage emails them.
+  if (p === "/api/v1/interviews/1/sitting" && req.method === "POST") {
+    const b = await body(req);
+    if (!b.started_at || !b.ended_at) return json(res, 400, { error: "started_at and ended_at are required" });
+    const first = meeting.status !== "sealed";
+    meeting.status = "sealed";
+    if (first) { sittingsReported.push(b); log(`sitting reported; confirmation email to ${users.fellow.email}: ${b.started_at} to ${b.ended_at}`); }
+    return json(res, 200, { ok: true, emailed: first });
+  }
+  if (p === "/test/sittings") return json(res, 200, { sittings: sittingsReported, meeting });
   if (p === "/api/v1/interviews/1/capsule" && req.method === "POST") {
     const { receipt } = await body(req);
     const sigs = receipt.signatures;
@@ -284,7 +301,7 @@ const server = http.createServer(async (req, res) => {
   if (p === "/room") {
     const ice = iceFor(2);
     let html = fs.readFileSync(new URL("./room.html", import.meta.url), "utf8").replace('data-media-type="audio"', `data-media-type="${meeting.media_type}"`)
-      .replace('data-ice-servers="[]"', `data-ice-servers="${JSON.stringify(ice.ice_servers).replace(/"/g, "&quot;")}" data-relay-only="${ice.relay_only}"`);
+      .replace('data-ice-servers="[]"', `data-ice-servers="${JSON.stringify(ice.ice_servers).replace(/"/g, "&quot;")}" data-relay-only="${ice.relay_only}" data-features="${features.join(",")}" data-minutes="${sittingMinutes}"`);
     if (meeting.media_type === "video") html = html.replace('class="stage audio-only"', 'class="stage "');
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
     return res.end(html);

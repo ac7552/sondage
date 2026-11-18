@@ -1,0 +1,17 @@
+<%# The Season details that name every Sitting's files. %>
+<div class="card" style="margin-top:16px">
+  <p class="eyebrow">Season</p>
+  <% if fellow.season_key %>
+    <p>Files are named <span class="mono"><%= fellow.season_key %>_sitting-01_master_<%= Date.current.iso8601 %>.wav</span></p>
+  <% else %>
+    <p class="small">Not set. Every Sitting's files are named from these, so set them before the first Sitting.</p>
+  <% end %>
+  <% if current_user.admin? %>
+    <%= form_with model: fellow, url: season_fellow_path(fellow), method: :patch, class: "row" do |f| %>
+      <div class="field"><%= f.label :given_name, "Given name" %><%= f.text_field :given_name %></div>
+      <div class="field"><%= f.label :surname %><%= f.text_field :surname %></div>
+      <div class="field"><%= f.label :convocation_year, "Convocation year" %><%= f.number_field :convocation_year, in: 2000..2200 %></div>
+      <div class="field" style="align-self:end"><%= f.submit "Save", class: "button quiet" %></div>
+    <% end %>
+  <% end %>
+</div>

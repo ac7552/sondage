@@ -32,6 +32,7 @@ class Fellow < ApplicationRecord
   delegate :name, :email, to: :user
 
   validates :match_intro, length: { maximum: 1500 }
+  validates :convocation_year, numericality: { only_integer: true, in: 2000..2200 }, allow_nil: true
   validate { errors.add(:historian, "must be a historian") if historian && !historian.historian? }
 
   # What a historian sees before a match: no intake answers, no contact details.
@@ -46,6 +47,21 @@ class Fellow < ApplicationRecord
   def heirs = safety_contacts.where(heir: true)
 
   def display_name = preferred_name.presence || user.name
+
+  # The Season key that starts every file name, e.g. "2027-alvarez-maria".
+  # Lowercase letters, digits and hyphens only; accents are dropped (Núñez -> nunez).
+  def season_key
+    return nil unless convocation_year && surname.present? && given_name.present?
+    [ convocation_year, Fellow.slug(surname), Fellow.slug(given_name) ].join("-")
+  end
+
+  def self.slug(text)
+    I18n.transliterate(text.to_s).downcase.gsub(/[^a-z0-9]+/, "-").gsub(/\A-+|-+\z/, "")
+  end
+
+  def season
+    { key: season_key, given_name:, surname:, convocation_year: }
+  end
   def stage_label = STAGE_LABELS.fetch(stage, stage.humanize)
   def stage_index = STAGES.index(stage)
   def interviews = meetings.where(kind: "interview")

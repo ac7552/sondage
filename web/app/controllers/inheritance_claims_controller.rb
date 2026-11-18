@@ -1,5 +1,6 @@
 # Admins check a reported death before anything can be opened.
 class InheritanceClaimsController < ApplicationController
+  requires_feature :heirs
   before_action :require_admin
   before_action :set_claim
 

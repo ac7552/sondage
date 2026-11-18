@@ -22,6 +22,15 @@ Rails.application.configure do
   config.active_record.dump_schema_after_migration = false
   config.active_record.attributes_for_inspect = [ :id ]
   config.action_mailer.default_url_options = { host: ENV.fetch("APP_HOST", "app.sondagestandard.com"), protocol: "https" }
+  # Outgoing email (for example Amazon SES's SMTP endpoint). Set SMTP_ADDRESS to turn it on.
+  if ENV["SMTP_ADDRESS"].present?
+    config.action_mailer.delivery_method = :smtp
+    config.action_mailer.smtp_settings = {
+      address: ENV["SMTP_ADDRESS"], port: ENV.fetch("SMTP_PORT", 587).to_i,
+      user_name: ENV["SMTP_USERNAME"], password: ENV["SMTP_PASSWORD"],
+      authentication: :login, enable_starttls_auto: true
+    }
+  end
   # Configure SMTP (or a provider's API) through environment variables when deploying.
   config.action_cable.allowed_request_origins = [ ENV.fetch("APP_ORIGIN", "https://app.sondagestandard.com"), "file://" ]
 end

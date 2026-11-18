@@ -1,4 +1,5 @@
 class FellowsController < ApplicationController
+  requires_feature :stages, only: :stage
   before_action :set_fellow
 
   def show
@@ -16,6 +17,16 @@ class FellowsController < ApplicationController
     @fellow.update!(historian:, seeking_historian: historian ? false : @fellow.seeking_historian)
     audit("fellow.historian_set", subject: @fellow, historian: historian&.name)
     redirect_to fellow_path(@fellow), notice: historian ? "#{historian.name} is now #{@fellow.display_name.split.first}'s historian." : "Historian removed."
+  end
+
+  # The Season details that name every Sitting's files.
+  def update_season
+    return head(:forbidden) unless current_user.admin?
+    @fellow.update!(params.require(:fellow).permit(:given_name, :surname, :convocation_year))
+    audit("fellow.season_set", subject: @fellow, season: @fellow.season_key)
+    redirect_to fellow_path(@fellow), notice: "Season set: #{@fellow.season_key || "incomplete"}."
+  rescue ActiveRecord::RecordInvalid
+    redirect_to fellow_path(@fellow), alert: @fellow.errors.full_messages.to_sentence
   end
 
   def stage

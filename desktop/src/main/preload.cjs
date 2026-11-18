@@ -42,6 +42,20 @@ contextBridge.exposeInMainWorld("sondage", {
     discard: (sessionId) => call("rec:discard", { sessionId }),
     manifest: (sessionId, context) => call("rec:manifest", { sessionId, context }),
     seal: (sessionId, historianSignature, historianPublicKey) => call("rec:seal", { sessionId, historianSignature, historianPublicKey }),
+    deliver: (args) => call("rec:deliver", args),
+  },
+  // The Senior Fellow's own Dropbox (the cloud copy).
+  storage: {
+    status: () => call("storage:status"),
+    setAppKey: (appKey) => call("storage:setAppKey", { appKey }),
+    connect: () => call("storage:connect"),
+    disconnect: () => call("storage:disconnect"),
+  },
+  // Cloud copies and emails waiting to go out; retried until done.
+  outbox: {
+    flush: () => call("outbox:flush"),
+    status: () => call("outbox:status"),
+    onProgress: (fn) => ipcRenderer.on("outbox:progress", (_e, msg) => fn(msg)),
   },
   vault: {
     list: () => call("vault:list"),

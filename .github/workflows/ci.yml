@@ -67,7 +67,19 @@ jobs:
         run: |
           (cd desktop && (npm ci || npm install))
           (cd e2e && (npm ci || npm install))
-      - name: Interview, recovery on a new computer, and an heir
+      - name: Download the Electron runtime
+        working-directory: desktop
+        run: node node_modules/electron/install.js
+      - name: First version - a Sitting, start to finish, with every extra feature off
+        working-directory: e2e
+        env:
+          CHROME: /usr/bin/google-chrome
+        run: |
+          SONDAGE_FEATURES= SITTING_MINUTES=1 DROPBOX_APP_KEY=test-app-key node server.mjs > server-sitting.log 2>&1 &
+          for i in $(seq 1 30); do (echo > /dev/tcp/127.0.0.1/3999) 2>/dev/null && break; sleep 1; done
+          xvfb-run -a node e2e-sitting.mjs
+          kill %1
+      - name: Every feature on - interview, recovery on a new computer, and an heir
         working-directory: e2e
         env:
           CHROME: /usr/bin/google-chrome
@@ -76,6 +88,14 @@ jobs:
           for i in $(seq 1 30); do (echo > /dev/tcp/127.0.0.1/3999) 2>/dev/null && break; sleep 1; done
           xvfb-run -a node e2e-call.mjs
           xvfb-run -a node e2e-heir.mjs
+          kill %1
+      - name: Every feature on - journal and matching (needs a fresh server)
+        working-directory: e2e
+        env:
+          CHROME: /usr/bin/google-chrome
+        run: |
+          node server.mjs > server-journal.log 2>&1 &
+          for i in $(seq 1 30); do (echo > /dev/tcp/127.0.0.1/3999) 2>/dev/null && break; sleep 1; done
           xvfb-run -a node e2e-journal.mjs
       - name: Keep screenshots and the server log
         if: always()
@@ -84,4 +104,4 @@ jobs:
           name: e2e-out
           path: |
             e2e/out/
-            e2e/server.log
+            e2e/*.log

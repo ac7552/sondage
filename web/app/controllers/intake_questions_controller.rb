@@ -1,4 +1,5 @@
 class IntakeQuestionsController < ApplicationController
+  requires_feature :intake
   before_action :require_admin
   before_action :set_question, only: %i[edit update destroy]
 

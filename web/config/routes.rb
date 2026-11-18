@@ -13,6 +13,7 @@ Rails.application.routes.draw do
 
   resources :fellows, only: :show do
     patch :stage, on: :member
+    patch :season, on: :member, action: :update_season
     patch :historian, on: :member, action: :assign_historian
     resource :intake, only: %i[show update] do
       post :complete
@@ -92,6 +93,7 @@ Rails.application.routes.draw do
         end
       end
       post "interviews/:id/capsule" => "capsules#create", as: :interview_capsule
+      post "interviews/:id/sitting" => "sittings#create", as: :interview_sitting
       resources :recoveries, only: %i[create show] do
         post :complete, on: :member
       end

@@ -62,6 +62,98 @@ node e2e-call.mjs            # full interview; screenshots in e2e/out/
 of date. CI runs both, the desktop tests on macOS, Windows and Linux, the Rails tests,
 and the end-to-end tests under xvfb.
 
+## The first version: a Sitting
+
+Stephen's first version of Sondage Resounder does one thing: a Certified Legacy Scholar and
+a Senior Fellow meet by audio and video, talk for up to an hour, and the Senior Fellow
+keeps a high-fidelity recording.
+
+1. **Connect.** The Senior Fellow's home screen shows one Sitting and one button. Pressing
+   **Connect** goes straight into the call; there are no check screens. The Scholar opens
+   the Sitting in a browser and presses **Join**.
+2. **Recording runs throughout,** from the moment both are connected. Only audio is
+   recorded; video is live only. A countdown shows the time left (`SITTING_MINUTES`,
+   60 by default).
+3. **Stop.** Either person presses **Stop**. The Scholar's last pieces arrive, then the
+   Senior Fellow's app builds one master, a 32-bit float WAV with two channels (the
+   Senior Fellow on the left, the Scholar on the right, each untouched), and its Sitting
+   record, and files them on the desktop:
+
+   ```
+   vault/sondage-archive/2027-ruiz-eleanor/v1/content/03-sittings/sitting-03/
+     2027-ruiz-eleanor_sitting-03_master_2027-02-02.wav
+     2027-ruiz-eleanor_sitting-03_sitting-record_2027-02-02.json
+   ```
+
+   The record holds the start and end times, the duration, the SHA-512 of the master and
+   which channel is whose. Names follow Stephen's rules: the Season key
+   (`{convocation year}-{surname}-{given name}`, lowercase, accents dropped) starts every
+   file, Sitting numbers are two digits, dates are YYYY-MM-DD.
+4. **The cloud copy.** The same files go to the Senior Fellow's own Dropbox, into the app's
+   own folder (Dropbox → Apps → the app's name → `vault/...`). Each file is checked against
+   Dropbox's own hash of what it stored.
+5. **The email.** The app tells the Sondage server only when the Sitting started and
+   stopped. The server sends the Senior Fellow a fixed-template email: date, times, who
+   took part, and that it was a live conversation between two people with no AI. **The
+   wording in `web/app/views/sitting_mailer/` is a placeholder until Stephen supplies
+   Sondage's own.**
+6. **The Scholar keeps nothing.** Once the Senior Fellow's computer has filed the master,
+   the Scholar's browser deletes its copy.
+
+Anything that can't finish (no internet, the computer asleep) waits in the app's outbox
+and is retried every few minutes and at the next start. The Senior Fellow's Season (names
+and Convocation year) is set when they're added, or on their page in the admin site.
+
+**Not decided yet (questions for Stephen):** whether the master should be two channels or
+one mixed track; whether each new Sitting should be a new OCFL version (`v2`, `v3`...)
+with an inventory, as OCFL proper requires, rather than every Sitting under `v1`; and the
+email's wording. Clock differences between the two computers aren't corrected, so the
+two channels can be a fraction of a second apart.
+
+## Feature switches
+
+Everything beyond the first version is switched off unless named in `SONDAGE_FEATURES` on
+the web app (comma-separated, or `all`). The desktop app and the Scholar's page read the
+same list from the server. A switched-off feature's pages answer "not found".
+
+| Switch | What it brings back |
+| --- | --- |
+| `intake`, `ten_by_ten`, `stages` | The intake questions, 10x10 lists, and the Fellow's stages |
+| `timeline` | The life timeline (web and desktop) |
+| `journal` | The journal and historians' questions |
+| `matching` | Choosing a historian |
+| `safety_copies` | Encryption keys, safety copies and recovery on a new computer |
+| `heirs` | Opening recordings after a Fellow's death |
+| `sealed_capsules` | Encrypted, co-signed capsules and receipts, instead of the first version's Sitting |
+| `recordings_vault` | My recordings, listening and certificates in the app |
+| `device_check` | The headphone and microphone steps before a Sitting |
+| `room_checklist` | The Scholar's room checklist and test clip |
+| `record_video` | Recording video (otherwise video is live only) |
+
+The tests run with everything on (`web/test`), except where they test the first version.
+
+## Connecting Dropbox (for the demo)
+
+The app connects the Senior Fellow's **own** Dropbox. Sondage registers one Dropbox app
+(once), and never holds anyone's sign-in.
+
+1. At [dropbox.com/developers/apps](https://www.dropbox.com/developers/apps), create an app:
+   **Scoped access**, **App folder**, any name (for example "Sondage").
+2. On its **Permissions** tab, tick `account_info.read`, `files.metadata.read` and
+   `files.content.write`, and press Submit.
+3. On its **Settings** tab, add the redirect URI `http://127.0.0.1:53682/dropbox`, and
+   copy the **App key**.
+4. Start the web app with `DROPBOX_APP_KEY=<that key>`.
+
+While the app is in Dropbox's "development" status, only a limited number of people can connect, which is
+plenty for a demo. On a new computer the desktop app then shows **Where your Sittings are
+kept**: press **Connect my Dropbox**, sign in to Dropbox in the browser, and press
+**Allow**. The token stays in that computer's keychain. **Help** shows where the Sittings
+are and can connect Dropbox later.
+
+A free Dropbox account holds 2 GB, about 1.5 hours of two-channel master at 48 kHz, so
+it's fine for a demo of 20-minute Sittings.
+
 ## Releasing the desktop app
 
 The website's `/download` page offers the installer for the visitor's computer, with the

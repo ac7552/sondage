@@ -10,7 +10,7 @@ class Admin::FellowsController < ApplicationController
     attrs = params.require(:user).permit(:name, :email, :password)
     chosen = attrs[:password].presence
     @user = User.new(attrs.merge(role: "fellow", password: chosen || SecureRandom.base58(24)))
-    @fellow = Fellow.new(params.require(:fellow).permit(:preferred_name, :birth_year, :birth_place).merge(user: @user, admin: current_user))
+    @fellow = Fellow.new(params.require(:fellow).permit(:preferred_name, :birth_year, :birth_place, :given_name, :surname, :convocation_year).merge(user: @user, admin: current_user))
     ActiveRecord::Base.transaction do
       @user.save!
       @fellow.save!

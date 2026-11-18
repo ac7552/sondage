@@ -1,4 +1,5 @@
 class TimelinesController < ApplicationController
+  requires_feature :timeline
   before_action :set_fellow
   layout "timeline"
 

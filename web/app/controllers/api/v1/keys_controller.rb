@@ -2,6 +2,7 @@
 # The private key never leaves their computer. Sondage receives its own safety copy
 # and, for the Fellow and each family member, only a fingerprint of theirs.
 class Api::V1::KeysController < Api::V1::BaseController
+  requires_feature :safety_copies
   before_action :require_fellow!
 
   def update

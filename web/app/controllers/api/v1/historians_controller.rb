@@ -1,5 +1,6 @@
 # Choosing a historian, from the desktop app. Same rules as the web page.
 class Api::V1::HistoriansController < Api::V1::BaseController
+  requires_feature :matching
   before_action :require_fellow!
 
   def index

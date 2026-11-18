@@ -37,6 +37,9 @@ end
 # ---------------------------------------------------------------- the Fellow
 
 eleanor = Fellow.find_or_create_by!(user: eleanor_user) do |f|
+  f.given_name = "Eleanor"
+  f.surname = "Ruiz"
+  f.convocation_year = 2027
   f.preferred_name = "Eleanor Ruiz"
   f.birth_year = 1941
   f.birth_place = "Ponce, Puerto Rico"

@@ -1,4 +1,5 @@
 class IntakesController < ApplicationController
+  requires_feature :intake
   before_action :set_fellow
   before_action :require_fellow_editor, except: :show
 

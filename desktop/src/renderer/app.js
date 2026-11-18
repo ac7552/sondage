@@ -24,6 +24,18 @@ const longDate = (iso) => new Date(iso).toLocaleDateString(undefined, { weekday:
 const longTime = (iso) => new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 const state = { config: null, me: null, keys: null, setup: null, room: null };
 
+// Which features are switched on (web/app/models/feature.rb). An older server that
+// doesn't say is treated as having everything on. "First version" means Stephen's
+// Sondage Resounder: connect, hold a Sitting, deliver it. Nothing else.
+const on = (name) => !Array.isArray(state.me?.features) || state.me.features.includes(name);
+const firstVersion = () => !on("sealed_capsules");
+const pad2 = (n) => String(n || 1).padStart(2, "0");
+function applyFeatures() {
+  $('#nav [data-go="story"]').hidden = !on("timeline");
+  $('#nav [data-go="journal"]').hidden = !on("journal");
+  $('#nav [data-go="vault"]').hidden = !on("recordings_vault");
+}
+
 // ---------------------------------------------------------------- navigation
 
 function show(name) {
@@ -71,10 +83,19 @@ async function boot() {
   if (state.config.user?.role === "heir") return loadHeirHome();
   state.keys = await S.keys.status();
   const me = (state.me = await S.api("GET", "/api/v1/me").catch(() => null));
-  const registered = me?.fellow?.signing_public_key;
-  if (!state.keys.hasKeys) return registered ? startRestore() : startSetup();
-  // Setup was interrupted before the helpers were saved.
-  if (me?.fellow && (!registered || (registered === state.keys.signingPublicKey && !me.fellow.safety_contacts?.length))) return startSetup();
+  applyFeatures();
+  if (on("safety_copies")) {
+    const registered = me?.fellow?.signing_public_key;
+    if (!state.keys.hasKeys) return registered ? startRestore() : startSetup();
+    // Setup was interrupted before the helpers were saved.
+    if (me?.fellow && (!registered || (registered === state.keys.signingPublicKey && !me.fellow.safety_contacts?.length))) return startSetup();
+  }
+  if (me?.storage) await S.storage.setAppKey(me.storage.dropbox_app_key || null);
+  S.outbox.flush().catch(() => {}); // anything left from last time (offline, asleep)
+  if (firstVersion() && me?.fellow) {
+    const st = await S.storage.status();
+    if (st.available && !st.connected && !state.config.storageSkipped) return showStorageSetup();
+  }
   await loadHome();
 }
 
@@ -308,7 +329,8 @@ async function loadHome() {
     $("#home-card").innerHTML = `<p class="problem">We can't reach Sondage right now. Check that the internet is on.</p>`;
     return;
   }
-  if (state.me.fellow?.signing_public_key && state.me.fellow.signing_public_key !== state.keys.signingPublicKey) {
+  applyFeatures();
+  if (on("safety_copies") && state.me.fellow?.signing_public_key && state.me.fellow.signing_public_key !== state.keys.signingPublicKey) {
     $("#home-card").innerHTML = `<p class="problem">Please call your Sondage helper before your interview. (This computer has a different lock from your account.)</p>`;
     return;
   }
@@ -318,6 +340,7 @@ async function loadHome() {
   const next = (state.me.interviews || []).find((iv) => iv.status !== "sealed");
   const done = (state.me.interviews || []).filter((iv) => iv.status === "sealed");
   const historian = callName(f.historian || next?.historian?.name) || "your historian";
+  if (firstVersion()) return renderFirstVersionHome(next, done);
 
   // The main thing to do now, with a photograph beside it.
   let feature;
@@ -406,6 +429,56 @@ async function loadHome() {
   $("#home-card").innerHTML = feature + tiles + chooseLater;
 }
 
+// The first version's home: one Sitting, one button. Nothing else.
+async function renderFirstVersionHome(next, done) {
+  const storage = await S.storage.status().catch(() => ({}));
+  const where = `On this computer${storage.connected ? " and in your Dropbox" : ""}`;
+  let card;
+  if (next) {
+    const d = next.scheduled_at ? new Date(next.scheduled_at) : null;
+    card = `
+      <section class="feature">
+        <div class="feature-text">
+          ${d ? `<div class="cal" aria-hidden="true"><span class="m">${esc(d.toLocaleDateString(undefined, { month: "short" }))}</span><span class="d">${d.getDate()}</span><span class="w">${esc(d.toLocaleDateString(undefined, { weekday: "short" }))}</span></div>` : ""}
+          <div>
+            <p class="label">Sitting ${pad2(next.sitting || next.part)}</p>
+            <p class="when">${d ? `${esc(dayWord(d))} at ${esc(longTime(next.scheduled_at))}` : "Whenever you're ready"}</p>
+            <p class="with">with ${esc(next.historian?.name || "your Scholar")}. ${next.media_type === "video" ? "You will see and hear each other." : "You will hear each other."}</p>
+            <button class="primary" data-join="${next.id}">Connect</button>
+          </div>
+        </div>
+      </section>`;
+  } else if (done.length) {
+    const last = done[done.length - 1];
+    card = `
+      <section class="feature">
+        <div class="feature-text"><div>
+          <p class="label">Sitting ${pad2(last.sitting || last.part)}</p>
+          <p class="when">It is saved.</p>
+          <p class="with">${where}. Held by you alone.</p>
+          <button data-reveal-vault>Show me where</button>
+        </div></div>
+      </section>`;
+  } else {
+    card = `
+      <section class="feature">
+        <div class="feature-text"><div>
+          <p class="label">Your Sittings</p>
+          <p class="when">Not scheduled yet</p>
+          <p class="with">Sondage will call you to pick a day.</p>
+        </div></div>
+      </section>`;
+  }
+  const pending = (await S.outbox.status().catch(() => [])).filter((i) => i.kind === "upload").length;
+  const note = pending ? `<p class="small">Still copying to your Dropbox. It will finish on its own when the internet is on.</p>` : "";
+  $("#home-card").innerHTML = card + note;
+}
+document.addEventListener("click", async (e) => {
+  if (!e.target.closest("[data-reveal-vault]")) return;
+  const c = await S.config.get();
+  S.vault.reveal(c.lastSitting?.master || c.archiveDir);
+});
+
 // "Today", "Tomorrow", or the day of the week (for this week), else the date.
 function dayWord(d) {
   const start = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
@@ -417,7 +490,10 @@ function dayWord(d) {
 }
 document.addEventListener("click", (e) => {
   const j = e.target.closest("[data-join]");
-  if (j) startCheck(state.me.interviews.find((i) => String(i.id) === j.dataset.join));
+  if (!j) return;
+  const iv = state.me.interviews.find((i) => String(i.id) === j.dataset.join);
+  // The first version has no checks before the call: one click, and they're talking.
+  on("device_check") ? startCheck(iv) : joinRoom(iv);
 });
 
 // ---------------------------------------------------------------- before the interview
@@ -550,7 +626,7 @@ async function joinRoom(iv) {
     state.me = await S.api("GET", "/api/v1/me");
     iv = state.me.interviews.find((i) => i.id === iv.id) || iv;
   } catch {}
-  if (!iv.historian?.signing_public_key) {
+  if (on("sealed_capsules") && !iv.historian?.signing_public_key) {
     show("home");
     $("#home-card").insertAdjacentHTML("afterbegin", `<p class="problem">Your interviewer isn't ready yet. Please wait a minute and try again, or call your Sondage helper.</p>`);
     return;
@@ -580,8 +656,19 @@ async function joinRoom(iv) {
   $("#start-rec").hidden = true;
   setStatus(`Waiting for ${iv.historian.name}…`);
 
-  room.stream = await openRawMicrophone(state.check?.micId, { video, videoDeviceId: state.check?.camId });
+  try {
+    room.stream = await openRawMicrophone(state.check?.micId, { video, videoDeviceId: state.check?.camId });
+  } catch {
+    teardownRoom();
+    show("home");
+    $("#home-card").insertAdjacentHTML("afterbegin", `<p class="problem">We can't use your microphone${video ? " or camera" : ""}. Your computer may be asking for permission: look for a message and click Allow, then press Connect again.</p>`);
+    return;
+  }
   $("#local-video").srcObject = room.stream;
+  // The recording must be the real voice. Without the check screens, say so here if not.
+  if (!on("device_check") && processingProblems(describeAudioTrack(room.stream.getAudioTracks()[0])).length) {
+    room.voiceWarning = "Your computer is changing the sound of your voice. Please tell Sondage after the Sitting.";
+  }
   room.rings.push(voiceRing(room.stream, $("#local-ring")));
   // An earlier try at this interview may already be saved here. Never write over it:
   // each new start becomes a new part (segment) of the same interview.
@@ -617,9 +704,11 @@ async function joinRoom(iv) {
       // A fresh connection gets every witness message again; the historian ignores repeats
       // and refuses to sign if any of them changed.
       for (const w of room.witnessed) sendControl(dc, w);
-      setStatus(room.recording ? `You are talking with ${room.iv.historian.name}.` : `You are talking with ${room.iv.historian.name}. They will start the recording.`);
+      setStatus(room.recording || firstVersion() ? `You are talking with ${room.iv.historian.name}.` : `You are talking with ${room.iv.historian.name}. They will start the recording.`);
       sendControl(dc, { t: "fellow-state", recording: room.recording });
       if (room.recording) sendControl(dc, { t: "recording", on: true, nextSegment: room.segments + 1 });
+      // First version: recording runs throughout, from the moment you're connected.
+      else if (firstVersion() && !room.stopped && !room.sealing) startRecording("connected");
     },
     onState: (s) => {
       if (s === "connected") setStatus(room.recording ? `You are talking with ${room.iv.historian.name}.` : `You are talking with ${room.iv.historian.name}. They will start the recording.`);
@@ -650,10 +739,10 @@ async function onHistorianControl(msg) {
     room.waiters.signShown?.();
   } else if (msg.t === "historian-state") {
     // Back after a dropped call while the interviewer is still recording: pick it up again.
-    if (msg.recording && !room.recording) await startRecording("historian");
+    if (msg.recording && !room.recording && !room.stopped) await startRecording("historian");
   } else if (msg.t === "request-start") {
     // The interviewer starts the recording; the Fellow just talks.
-    if (!room.recording) await startRecording("historian");
+    if (!room.recording && !room.stopped) await startRecording("historian");
   } else if (msg.t === "request-end") {
     if (room.recording) endAndSeal();
   }
@@ -683,7 +772,8 @@ async function startRecording(by) {
     info: { sampleRate: room.audioRec.sampleRate, device: { label: d.label }, processing: { echoCancellation: d.echoCancellation, noiseSuppression: d.noiseSuppression, autoGainControl: d.autoGainControl, voiceIsolation: d.voiceIsolation, deviceSampleRate: d.sampleRate, captureSampleRate: room.audioRec.sampleRate } },
   });
   announceOwnTrack(room.audioId, "audio");
-  if (room.video) {
+  // Video is for the live connection; it's recorded only if that feature is on.
+  if (room.video && on("record_video")) {
     room.videoRec = new LocalVideoRecorder(room.stream, {
       onChunk: async (c) => {
         const trackId = room.videoId;
@@ -697,13 +787,31 @@ async function startRecording(by) {
   await S.rec.log(room.sessionId, by, "recording-started");
   sendControl(room.channel, { t: "recording", on: true, nextSegment: room.segments + 1 });
   sendControl(room.channel, { t: "fellow-state", recording: true });
-  room.startedAt = new Date().toISOString();
-  const t0 = Date.now();
+  room.startedAt ||= new Date().toISOString();
+  room.t0 ||= Date.now();
+  const t0 = room.t0;
   $("#timer").hidden = false;
-  room.timer = setInterval(() => ($("#timer").textContent = fmtClock((Date.now() - t0) / 1000)), 500);
+  if (firstVersion()) {
+    // A countdown of the Sitting's length (an hour; shorter for a demo).
+    const total = (state.me?.sitting?.minutes || 60) * 60;
+    const tick = () => {
+      const left = total - (Date.now() - t0) / 1000;
+      $("#timer").textContent = fmtClock(Math.max(0, left));
+      $("#timer").classList.toggle("ended", left <= 0);
+      if (left <= 0 && !room.timeUp) {
+        room.timeUp = true;
+        setStatus(total >= 3600 ? "The hour is up. Press Stop when you're ready." : "Time is up. Press Stop when you're ready.");
+      }
+    };
+    tick();
+    room.timer = setInterval(tick, 500);
+  } else {
+    room.timer = setInterval(() => ($("#timer").textContent = fmtClock((Date.now() - t0) / 1000)), 500);
+  }
   $("#rec-banner").className = "rec-banner on";
   $("#rec-banner").textContent = "Recording";
-  setStatus(`You are talking with ${room.iv.historian.name}.`);
+  setStatus(room.voiceWarning || `You are talking with ${room.iv.historian.name}.`);
+  $("#end-rec").textContent = firstVersion() ? "Stop" : "Stop and save";
   $("#end-rec").hidden = false;
   window.onbeforeunload = () => "Your interview is still recording.";
 }
@@ -793,11 +901,12 @@ $("#seal-gohome").addEventListener("click", () => {
 });
 
 $("#end-rec").addEventListener("click", () => {
-  if (!confirm("Stop the recording and save it?")) return;
+  if (!confirm(firstVersion() ? "Stop the Sitting and save it?" : "Stop the recording and save it?")) return;
   endAndSeal();
 });
 
 async function endAndSeal() {
+  if (firstVersion()) return endAndDeliver();
   const room = state.room;
   if (!room || room.sealing) return;
   room.sealing = true;
@@ -894,6 +1003,150 @@ async function endAndSeal() {
     console.error(ex);
   }
 }
+
+// ---------------------------------------------------------------- stop and deliver (first version)
+//
+// Either person presses Stop. The Scholar's last pieces arrive, the two-channel
+// master and its Sitting record are filed on this computer, then copied to the
+// Senior Fellow's Dropbox and confirmed by email. The Scholar keeps no copy.
+
+function deliverSteps(name) {
+  const who = callName(name) || "The Scholar";
+  return [
+    ["stop", "Stopping the recording", ""],
+    ["collect", `Getting ${who}'s side of the recording`, ""],
+    ["save", "Saving it on this computer", ""],
+    ["cloud", "Copying it to your Dropbox", ""],
+    ["email", "Sending you a confirming email", ""],
+  ];
+}
+
+async function endAndDeliver() {
+  const room = state.room;
+  if (!room || room.sealing) return;
+  room.sealing = true;
+  room.stopped = true;
+  show("seal");
+  $("#seal-title").textContent = "Saving your Sitting…";
+  $("#seal-lede").textContent = "Please keep this window open.";
+  $("#seal-steps").innerHTML = deliverSteps(room.iv.historian.name).map(([id, label, say]) => `<li data-step="${id}" data-label="${esc(label)}"><span class="mark"></span><span>${esc(label)}<span class="say">${esc(say)}</span></span></li>`).join("");
+  $("#seal-tech").innerHTML = "";
+  $("#seal-bar").style.width = "0%";
+  for (const id of ["seal-nudge", "seal-error", "seal-home", "seal-stuck"]) $(`#${id}`).hidden = true;
+  $("#seal-result").innerHTML = "";
+  try {
+    step("stop", "active");
+    const endedAt = new Date().toISOString();
+    room.endedAt ||= endedAt;
+    if (room.recording) await stopOwnRecorders();
+    step("stop", "done", "");
+
+    step("collect", "active");
+    const waitingFor = () => [...room.historianTracks.values()].filter((t) => !t.ended).length;
+    if (room.historianTracks.size === 0 && room.channel?.readyState !== "open") {
+      step("collect", "done", "Nothing arrived from the Scholar's side. Your own voice is saved.");
+    } else {
+      await new Promise((resolve, reject) => {
+        const t = setTimeout(() => reject(new Error(`${room.iv.historian.name}'s side of the recording didn't finish arriving.`)), 180000);
+        room.waiters.trackEnd = () => { if (waitingFor() === 0) { clearTimeout(t); resolve(); } };
+        sendControl(room.channel, { t: "end" });
+        if (room.historianTracks.size > 0 && waitingFor() === 0) { clearTimeout(t); resolve(); }
+      });
+      const status = await S.rec.status(room.sessionId);
+      for (const [id, claim] of room.historianTracks) {
+        const got = status.find((x) => x.id === id);
+        if (!got || got.chunks !== claim.chunks || got.link !== claim.finalChain) throw new Error(`${trackLabel(id)} arrived incomplete (${got?.chunks ?? 0} of ${claim.chunks} pieces).`);
+      }
+      step("collect", "done", "Every piece arrived.");
+    }
+
+    step("save", "active");
+    const f = state.me.fellow || {};
+    const sitting = room.iv.sitting || room.iv.part || 1;
+    const result = await S.rec.deliver({ sessionId: room.sessionId, seasonKey: f.season?.key, sitting, startedAt: room.startedAt, endedAt: room.endedAt, interviewId: room.iv.id });
+    const secs = Math.round(result.durationSeconds);
+    const length = secs < 60 ? `${secs} seconds` : `${Math.round(secs / 60)} minute${Math.round(secs / 60) === 1 ? "" : "s"}`;
+    step("save", "done", `In the vault folder on your desktop.`, `${result.names.master} · SHA-512 ${result.sha512.slice(0, 16)}…`);
+    // The Scholar's page can now discard its copy.
+    sendControl(room.channel, { t: "sealed", capsuleId: result.names.master, manifestSha256: result.sha512, delivered: true });
+
+    // Cloud copy and email: tried now, and retried on their own if they can't finish.
+    const storage = await S.storage.status();
+    // No cloud set up for this app at all: leave the step out rather than show a gap.
+    if (!storage.available) $('#seal-steps li[data-step="cloud"]')?.remove();
+    step("cloud", "active", storage.connected ? "" : "Dropbox isn't connected yet.");
+    step("email", "active");
+    const results = await S.outbox.flush();
+    const uploads = results.filter((r) => r.kind === "upload");
+    const cloudOk = storage.connected && uploads.length > 0 && uploads.every((r) => r.ok);
+    step("cloud", "done", cloudOk ? "Arrived, and checked." : storage.connected ? "Not finished yet. It will finish on its own when the internet is on." : "Not connected. Ask Sondage to help connect your Dropbox.");
+    const mail = results.find((r) => r.kind === "email");
+    step("email", "done", mail?.ok ? "Sent." : "It will be sent when the internet is on.");
+
+    setTimeout(teardownRoom, 1500);
+    $("#seal-title").textContent = "Your Sitting is saved.";
+    $("#seal-lede").textContent = `Sitting ${pad2(sitting)} · ${length}. On this computer${cloudOk ? " and in your Dropbox" : ""}. Held by you alone.`;
+    $("#seal-bar").style.width = "100%";
+    $("#seal-home").textContent = "Go to my home page";
+    $("#seal-home").dataset.go = "home";
+    $("#seal-home").hidden = false;
+  } catch (ex) {
+    room.sealing = false;
+    const active = $("#seal-steps li.active");
+    if (active) active.className = "failed";
+    $("#seal-title").textContent = "We need a little help";
+    $("#seal-lede").textContent = "Don't worry. Everything you said is still saved on this computer. Please call your Sondage helper.";
+    $("#seal-error").textContent = ex.message;
+    $("#seal-error").hidden = false;
+    $("#seal-stuck").hidden = false;
+    console.error(ex);
+  }
+}
+S.outbox.onProgress((m) => {
+  if (m.total && m.label === "recording") $('#seal-steps li[data-step="cloud"] .say')?.replaceChildren(`${Math.floor((m.done / m.total) * 100)}%`);
+});
+
+// ---------------------------------------------------------------- where Sittings are kept (setup, first version)
+
+async function showStorageSetup() {
+  show("storage");
+  $("#storage-error").hidden = true;
+  await renderStorage("#storage-list");
+}
+async function renderStorage(list) {
+  const st = await S.storage.status();
+  const c = await S.config.get();
+  $(list).innerHTML = `
+    <li class="done"><span class="mark">✓</span><span>This computer<span class="sub">${esc(c.archiveDir)}</span></span></li>
+    <li class="${st.connected ? "done" : ""}"><span class="mark">${st.connected ? "✓" : "…"}</span><span>Your Dropbox<span class="sub">${st.connected ? esc(st.email || "Connected") : "Not connected yet"}</span></span></li>`;
+  return st;
+}
+async function connectDropbox(button, errorEl) {
+  button.disabled = true;
+  const before = button.textContent;
+  button.textContent = "Waiting for Dropbox…";
+  try {
+    await S.storage.connect();
+    return true;
+  } catch (ex) {
+    if (errorEl) { $(errorEl).textContent = ex.message; $(errorEl).hidden = false; }
+    else alert(ex.message);
+    return false;
+  } finally {
+    button.disabled = false;
+    button.textContent = before;
+  }
+}
+$("#storage-connect").addEventListener("click", async () => {
+  if (await connectDropbox($("#storage-connect"), "#storage-error")) {
+    await renderStorage("#storage-list");
+    setTimeout(loadHome, 1200);
+  }
+});
+$("#storage-skip").addEventListener("click", async () => {
+  await S.config.set({ storageSkipped: true });
+  loadHome();
+});
 
 // ---------------------------------------------------------------- my life story
 
@@ -1032,6 +1285,12 @@ function stopListening() {
 async function loadSettings() {
   show("settings");
   state.config = await S.config.get();
+  $("#safety-help").hidden = !on("safety_copies");
+  $("#storage-help").hidden = !firstVersion();
+  if (firstVersion()) {
+    const st = await renderStorage("#storage-help-list");
+    $("#storage-help-connect").hidden = !st.available || st.connected;
+  }
   const k = await S.keys.status();
   if (!state.me) state.me = await S.api("GET", "/api/v1/me").catch(() => null);
   // This computer's own list, or (after getting the key back on a new computer) the account's.
@@ -1047,13 +1306,20 @@ async function loadSettings() {
   $("#settings-facts").innerHTML = `
     <dt>Signed in as</dt><dd>${esc(state.config.user?.name)} (${esc(state.config.user?.email)})</dd>
     <dt>Sondage server</dt><dd class="mono">${esc(state.config.serverUrl)}</dd>
-    <dt>Key fingerprint</dt><dd class="mono">${esc(k.fingerprint)}</dd>
+    ${k.fingerprint ? `<dt>Key fingerprint</dt><dd class="mono">${esc(k.fingerprint)}</dd>` : ""}
     <dt>Key storage</dt><dd>${state.config.keychain ? "This computer's keychain" : "A file only this user can read (no keychain on this system)"}</dd>
-    <dt>Recordings folder</dt><dd class="mono">${esc(state.config.vaultDir)}</dd>
+    <dt>Recordings folder</dt><dd class="mono">${esc(firstVersion() ? state.config.archiveDir : state.config.vaultDir)}</dd>
     <dt>Time certification</dt><dd class="mono">${esc(state.config.tsaUrl || "off")}</dd>
     <dt>App version</dt><dd>${esc(state.config.version)}</dd>`;
 }
 $("#resend-safety").addEventListener("click", () => startSending([1, 2, 0]));
+$("#storage-help-connect").addEventListener("click", async () => {
+  if (await connectDropbox($("#storage-help-connect"))) loadSettings();
+});
+$("#storage-help-open").addEventListener("click", async () => {
+  const c = await S.config.get();
+  S.vault.reveal(c.lastSitting?.master || c.archiveDir);
+});
 $("#heirs-form").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const ids = $$('#heirs-list input[name="heir"]:checked').map((i) => +i.value);

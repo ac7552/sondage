@@ -2,6 +2,7 @@
 # their historian and admins see only entries the Fellow chose to share, and can
 # leave questions for the Fellow to write about.
 class JournalEntriesController < ApplicationController
+  requires_feature :journal
   before_action :set_fellow
   before_action :set_entry, only: %i[edit update destroy]
   before_action :require_owner, only: %i[create edit update destroy]

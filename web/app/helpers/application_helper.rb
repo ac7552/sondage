@@ -1,4 +1,6 @@
 module ApplicationHelper
+  def feature?(name) = Feature.enabled?(name)
+
   # Journal words with ==highlights== and ~~crossings out~~, safely escaped.
   def journal_words(text)
     html = ERB::Util.html_escape(text.to_s)

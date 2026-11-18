@@ -59,7 +59,11 @@
 
   <section class="dl-next">
     <h2>Once you've signed in</h2>
-    <p>The app helps you choose two people you trust to keep a safety copy of your key, so you can always get your recordings back. Then it checks your headphones and microphone. On the day of your interview, open the app and press <strong>Start my interview</strong>.</p>
+    <% if feature?(:safety_copies) %>
+      <p>The app helps you choose two people you trust to keep a safety copy of your key, so you can always get your recordings back. Then it checks your headphones and microphone. On the day of your interview, open the app and press <strong>Start my interview</strong>.</p>
+    <% else %>
+      <p>On the day of your Sitting, open the app and press <strong>Connect</strong>. When you finish, your recording is saved on your computer and in your own cloud storage. It is held by you alone.</p>
+    <% end %>
     <p class="dl-help">Someone from Sondage can do all of this with you on a call. Just ask.</p>
   </section>
 </div>

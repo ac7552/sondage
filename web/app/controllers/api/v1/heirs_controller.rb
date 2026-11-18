@@ -1,5 +1,6 @@
 # The Fellow chooses which family helpers may open the recordings after their death.
 class Api::V1::HeirsController < Api::V1::BaseController
+  requires_feature :heirs
   before_action :require_fellow!
 
   def update

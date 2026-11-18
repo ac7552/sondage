@@ -1,4 +1,5 @@
 class ApplicationController < ActionController::Base
+  include FeatureGate
   before_action :authenticate_user!
   # Older browsers can still reset a password and approve a safety request.
   allow_browser versions: :modern, if: -> { !devise_controller? && !controller_name.in?(%w[safety downloads]) }

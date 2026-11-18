@@ -2,6 +2,7 @@
 # key on the heir's own computer, from the heir's safety copy plus Sondage's.
 # It works exactly like getting a key back on a new computer.
 class Api::V1::InheritancesController < Api::V1::BaseController
+  requires_feature :heirs
   before_action :require_heir!
   before_action :set_claim, except: :index
 

@@ -1,4 +1,5 @@
 class ItemsController < ApplicationController
+  requires_feature :timeline
   before_action :set_fellow
   before_action :require_fellow_editor
   before_action :set_item, only: %i[edit update destroy]

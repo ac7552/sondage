@@ -38,6 +38,8 @@ export function defaults() {
   return {
     serverUrl: process.env.SONDAGE_SERVER_URL || builtInServerUrl() || "http://localhost:3000",
     vaultDir: process.env.SONDAGE_VAULT_DIR || path.join(app.getPath("documents"), "Sondage Vault"),
+    // Where each Sitting is filed on this computer (Stephen's layout starts at vault/).
+    archiveDir: process.env.SONDAGE_ARCHIVE_DIR || path.join(app.getPath("desktop"), "vault"),
     tsaUrl: process.env.SONDAGE_TSA_URL ?? "https://freetsa.org/tsr",
   };
 }

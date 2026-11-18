@@ -1,6 +1,7 @@
 # The Fellow's journal, for the desktop app. Voice notes travel as base64 in JSON
 # (they're short), and are only ever sent back to the Fellow who recorded them.
 class Api::V1::JournalController < Api::V1::BaseController
+  requires_feature :journal
   before_action :require_fellow!
   before_action :set_entry, only: %i[update destroy voice versions]
 

@@ -1,4 +1,5 @@
 class TimelineVersionsController < ApplicationController
+  requires_feature :timeline
   before_action :set_fellow
   before_action :require_fellow_editor, only: :create
 

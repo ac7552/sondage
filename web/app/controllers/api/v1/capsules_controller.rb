@@ -1,6 +1,7 @@
 # Receives the public receipt of a sealed capsule. The capsule itself is never
 # uploaded: it stays encrypted on storage the Fellow controls.
 class Api::V1::CapsulesController < Api::V1::BaseController
+  requires_feature :sealed_capsules
   before_action :require_fellow!
 
   def create

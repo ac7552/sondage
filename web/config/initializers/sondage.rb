@@ -16,5 +16,12 @@ Rails.application.config.x.desktop_downloads = {
   windows: ENV.fetch("DESKTOP_WINDOWS_URL", "#{desktop_base}/Sondage-windows.exe"),
   linux: ENV.fetch("DESKTOP_LINUX_URL", "#{desktop_base}/Sondage-linux.AppImage")
 }
+# How long a Sitting's countdown runs, in minutes. Stephen's first version: an hour.
+Rails.application.config.x.sitting_minutes = ENV.fetch("SITTING_MINUTES", 60).to_i
+
+# The Dropbox app the desktop app connects with (a public "app key", not a secret).
+# Each Senior Fellow connects their own Dropbox; Sondage holds no token.
+Rails.application.config.x.dropbox_app_key = ENV["DROPBOX_APP_KEY"].presence
+
 # Shown on the download page when set, e.g. "0.1.0".
 Rails.application.config.x.desktop_version = ENV["DESKTOP_VERSION"].presence

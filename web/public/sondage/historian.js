@@ -25,6 +25,12 @@ const cfg = root.dataset;
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const video = cfg.mediaType === "video";
+// Switched-on features (web/app/models/feature.rb). Without the attribute, an older
+// page: everything on. The first version is Stephen's Sondage Resounder: connect,
+// record throughout, either person stops, the Senior Fellow keeps the recording.
+const features = cfg.features === undefined ? null : cfg.features.split(",").filter(Boolean);
+const on = (name) => features === null || features.includes(name);
+const firstVersion = !on("sealed_capsules");
 const state = {
   micId: null, camId: null, recording: false, tracks: new Map(), sender: new ChunkSender({ onAck: (msg) => onChunkAck(msg) }),
   // The Fellow's own tracks as their app reported each chunk, live, during the call.
@@ -133,9 +139,10 @@ function meter(track) {
   tick();
 }
 function updateJoin() {
-  const checklist = [...document.querySelectorAll("[data-check]")].every((c) => c.checked);
+  const checklist = !on("room_checklist") || [...document.querySelectorAll("[data-check]")].every((c) => c.checked);
   $("join").disabled = !($("headphones").checked && checklist && state.problems?.length === 0 && state.key);
 }
+if (!on("room_checklist")) $("room-checklist")?.remove();
 $("headphones").addEventListener("change", updateJoin);
 document.querySelectorAll("[data-check]").forEach((c) => c.addEventListener("change", updateJoin));
 
@@ -269,10 +276,11 @@ function recordWitness(msg) {
 // The historian runs the recording; the Fellow's app does the saving.
 function updateControls() {
   const open = state.channel?.readyState === "open";
-  $("h-start").hidden = state.recording || state.finished;
+  // First version: recording starts by itself when the Senior Fellow connects.
+  $("h-start").hidden = firstVersion || state.recording || state.finished;
   $("h-start").disabled = !open || state.starting;
   const wait = $("h-wait");
-  if (wait) wait.hidden = open || state.recording || state.finished;
+  if (wait) wait.hidden = firstVersion || open || state.recording || state.finished;
   $("h-end").hidden = !state.recording;
   $("h-end").disabled = !open;
 }
@@ -282,10 +290,11 @@ $("h-start").addEventListener("click", () => {
   sendControl(state.channel, { t: "request-start" });
   updateControls();
 });
+if (firstVersion) $("h-end").textContent = "Stop";
 $("h-end").addEventListener("click", () => {
-  if (!confirm(`End the interview and save it on ${cfg.fellowName}'s computer?`)) return;
+  if (!confirm(firstVersion ? `Stop the Sitting? It will be saved for ${cfg.fellowName}.` : `End the interview and save it on ${cfg.fellowName}'s computer?`)) return;
   $("h-end").disabled = true;
-  $("h-end").textContent = "Saving…";
+  $("h-end").textContent = firstVersion ? "Stopping…" : "Saving…";
   sendControl(state.channel, { t: "request-end" });
 });
 
@@ -324,14 +333,23 @@ async function startRecording(segment) {
     processing: { echoCancellation: d.echoCancellation, noiseSuppression: d.noiseSuppression, autoGainControl: d.autoGainControl, voiceIsolation: d.voiceIsolation, deviceSampleRate: d.sampleRate, captureSampleRate: state.audioRec.sampleRate },
     browser: navigator.userAgent,
   });
-  if (video) {
+  if (video && on("record_video")) {
     const videoId = `historian-video${suffix}`;
     state.videoRec = new LocalVideoRecorder(state.stream, { onChunk: (c) => sendChunk(videoId, c, {}) });
     await announce(videoId, "video", { mimeType: state.videoRec.mimeType });
     state.videoRec.start();
   }
-  const t0 = Date.now();
-  state.timer = setInterval(() => ($("timer").textContent = fmt((Date.now() - t0) / 1000)), 500);
+  state.t0 ||= Date.now();
+  const t0 = state.t0;
+  const total = Number(cfg.minutes || 60) * 60;
+  const tick = () => {
+    const elapsed = (Date.now() - t0) / 1000;
+    // First version: a countdown of the Sitting's length.
+    $("timer").textContent = firstVersion ? fmt(Math.max(0, total - elapsed)) : fmt(elapsed);
+    if (firstVersion && elapsed >= total) $("timer").classList.add("ended");
+  };
+  tick();
+  state.timer = setInterval(tick, 500);
   $("rec-state").className = "rec-state on";
   $("rec-state").textContent = "Recording";
   window.onbeforeunload = () => "The interview is still recording.";
@@ -498,7 +516,13 @@ function showDone(msg) {
   state.stream?.getTracks().forEach((t) => t.stop());
   $("live").hidden = true;
   $("done").hidden = false;
-  $("done-facts").innerHTML = `<dt>Capsule</dt><dd class="mono">${esc(msg.capsuleId)}</dd><dt>Fingerprint</dt><dd class="mono">${esc(msg.manifestSha256.slice(0, 16).toUpperCase().match(/.{4}/g).join(" "))}</dd>`;
+  $("done-facts").innerHTML = firstVersion
+    ? `<dt>Recording</dt><dd class="mono">${esc(msg.capsuleId)}</dd><dt>SHA-512</dt><dd class="mono">${esc(msg.manifestSha256.slice(0, 16))}…</dd>`
+    : `<dt>Capsule</dt><dd class="mono">${esc(msg.capsuleId)}</dd><dt>Fingerprint</dt><dd class="mono">${esc(msg.manifestSha256.slice(0, 16).toUpperCase().match(/.{4}/g).join(" "))}</dd>`;
+  if (firstVersion) {
+    $("done").querySelector("h1").textContent = "The Sitting is saved.";
+    $("done").querySelector(".lede").textContent = `It is with ${cfg.fellowName} alone. This browser's copy of your recording has been deleted.`;
+  }
 }
 
 // ---------------------------------------------------------------- keeping it safe across a reload

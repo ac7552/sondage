@@ -5,6 +5,14 @@ Fellow's own computer exactly as it sounded, sealed so any change is detectable,
 encrypted so only the Fellow can open it. Around it: a life timeline, a journal, and
 a way to get recordings back on a new computer or to an heir.
 
+**Right now it runs as the first version, Sondage Resounder:** the Senior Fellow presses
+**Connect**, talks with the Scholar for up to an hour, and either of them presses **Stop**.
+One two-channel recording (the Senior Fellow left, the Scholar right, 32-bit float WAV) and
+its Sitting record are filed under Stephen's names in a `vault` folder on the Senior
+Fellow's desktop and copied to their own Dropbox, and a confirming email goes out. The
+Scholar keeps no copy. Everything else is still here, behind
+[feature switches](docs/how-it-works.md#feature-switches), off by default.
+
 ### Sondage in action
 
 [![Sondage desktop app: sign in, journal, life story and recordings](docs/demo.gif)](docs/demo.gif)
@@ -38,11 +46,19 @@ origin v0.1.0`) to build the installers and publish them; see
 [Releasing the app](docs/how-it-works.md#releasing-the-desktop-app).
 
 Demo accounts, password `sondage-demo-2026`: `admin@sondage.test`,
-`historian@sondage.test`, and `eleanor@sondage.test` (the Fellow; also signs in to the
-desktop app). For a test interview, open the interview room as the historian, start the
-interview in the desktop app as Eleanor, then press **Start recording**.
+`historian@sondage.test`, and `eleanor@sondage.test` (the Senior Fellow; also signs in to
+the desktop app).
+
+**A demo Sitting:** start the web app with `SITTING_MINUTES=20 bin/rails server`. As the
+Scholar, open Eleanor's Sitting in a browser and press **Join**. In the desktop app, as
+Eleanor, press **Connect**. Talk, then press **Stop** on either side. The files appear
+in `vault` on the desktop. For the Dropbox copy, see
+[Connecting Dropbox](docs/how-it-works.md#connecting-dropbox-for-the-demo).
+`SONDAGE_FEATURES=all` switches every earlier feature back on.
 
 Tests: `npm test` in `desktop/`, `bin/rails test` in `web/`, and in `e2e/`
+`SONDAGE_FEATURES= SITTING_MINUTES=1 node server.mjs &` then `node e2e-sitting.mjs` for the
+first version. For the full set,
 `node server.mjs &` then `node e2e-call.mjs` (under `xvfb-run` on Linux). CI runs all of
 them, plus checks that the shared copies and published script hashes are current.
 

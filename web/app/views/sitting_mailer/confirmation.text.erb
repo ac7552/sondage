@@ -1,0 +1,15 @@
+<%# FIXED TEMPLATE. Placeholder wording until Stephen supplies Sondage's own. %>
+Dear <%= @fellow.display_name %>,
+
+This confirms that Sitting <%= @sitting %> took place.
+
+Date: <%= @started_at.strftime("%A, %B %-d, %Y") %>
+Started: <%= @started_at.strftime("%-l:%M %p") %>
+Stopped: <%= @ended_at.strftime("%-l:%M %p") %>
+Who took part: <%= @fellow.display_name %> (Senior Fellow) and <%= @scholar.name %> (Certified Legacy Scholar)
+
+This was a live conversation between two people. No AI was involved.
+
+The recording is held by you alone.
+
+Sondage

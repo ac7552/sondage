@@ -641,3 +641,6 @@ button.wide { width: 100%; }
   .home-tile:not(.notebook-mini) .home-tile-photo { width: 150px; height: auto; }
   .notebook-mini { min-height: 480px; }
 }
+
+/* First version: the Sitting's countdown turns quietly red when the time is up. */
+.timer.ended { color: var(--accent); }

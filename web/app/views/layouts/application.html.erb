@@ -19,10 +19,14 @@
     <% if user_signed_in? %>
       <nav>
         <%= nav_link "Home", root_path %>
-        <% if current_user.admin? %><%= nav_link "Intake questions", intake_questions_path %><% end %>
-        <% if current_user.fellow? && current_user.fellow %><%= nav_link "My timeline", fellow_timeline_path(current_user.fellow) %><%= nav_link "My journal", fellow_journal_entries_path(current_user.fellow) %><%= nav_link (current_user.fellow.historian ? "My historian" : "Choose a historian"), match_path %><% end %>
-        <% if current_user.admin? %><%= nav_link "Matching", match_path %><% end %>
-        <% if current_user.historian? %><%= nav_link "Find Fellows", match_path %><%= nav_link "My profile", edit_historian_profile_path %><% end %>
+        <% if current_user.admin? && feature?(:intake) %><%= nav_link "Intake questions", intake_questions_path %><% end %>
+        <% if current_user.fellow? && current_user.fellow %>
+          <% if feature?(:timeline) %><%= nav_link "My timeline", fellow_timeline_path(current_user.fellow) %><% end %>
+          <% if feature?(:journal) %><%= nav_link "My journal", fellow_journal_entries_path(current_user.fellow) %><% end %>
+          <% if feature?(:matching) %><%= nav_link (current_user.fellow.historian ? "My historian" : "Choose a historian"), match_path %><% end %>
+        <% end %>
+        <% if current_user.admin? && feature?(:matching) %><%= nav_link "Matching", match_path %><% end %>
+        <% if current_user.historian? && feature?(:matching) %><%= nav_link "Find Fellows", match_path %><%= nav_link "My profile", edit_historian_profile_path %><% end %>
         <span class="who"><%= current_user.name %> · <%= current_user.role.capitalize %></span>
         <%= button_to "Sign out", destroy_user_session_path, method: :delete, class: "link" %>
       </nav>

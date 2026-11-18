@@ -1,7 +1,7 @@
 <% page_title "Add a Fellow" %>
 <div class="narrow">
   <p class="eyebrow">Admin</p>
-  <h1>Add a Fellow</h1>
+  <h1>Add a Senior Fellow</h1>
   <%= error_summary(@user) %><%= error_summary(@fellow) %>
   <%= form_with url: admin_fellows_path, class: "stack" do |f| %>
     <%= fields_for :user, @user do |u| %>
@@ -10,6 +10,13 @@
       <div class="field"><%= u.label :password, "Password (optional)" %><%= u.text_field :password, autocomplete: "off" %><span class="hint">Leave blank and we'll email them a link to choose their own. Set one only if you'll tell them in person.</span></div>
     <% end %>
     <%= fields_for :fellow, @fellow do |p| %>
+      <p class="eyebrow" style="margin-top:12px">Season</p>
+      <div class="row">
+        <div class="field"><%= p.label :given_name, "Given name" %><%= p.text_field :given_name, required: true %></div>
+        <div class="field"><%= p.label :surname %><%= p.text_field :surname, required: true %></div>
+        <div class="field"><%= p.label :convocation_year, "Convocation year" %><%= p.number_field :convocation_year, in: 2000..2200, value: @fellow.convocation_year || Date.current.year, required: true %></div>
+      </div>
+      <span class="hint">These name every recording, for example 2027-alvarez-maria_sitting-03_master_2027-02-02.wav.</span>
       <div class="field"><%= p.label :preferred_name, "Preferred name (optional)" %><%= p.text_field :preferred_name %></div>
       <div class="row">
         <div class="field"><%= p.label :birth_year %><%= p.number_field :birth_year, in: 1900..Date.current.year %></div>

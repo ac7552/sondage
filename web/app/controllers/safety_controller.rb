@@ -3,6 +3,7 @@
 # the page proves which piece it holds with a fingerprint, and on approval encrypts
 # the piece to the Fellow's new computer before sending it.
 class SafetyController < ApplicationController
+  requires_feature :safety_copies
   include StrictPagePolicy
   strict_page_policy only: :show
   skip_before_action :authenticate_user!

@@ -1,5 +1,6 @@
 # For the Fellow's desktop app. Authenticated with a bearer token.
 class Api::V1::BaseController < ActionController::API
+  include FeatureGate
   before_action :authenticate!
   rescue_from ActiveRecord::RecordNotFound, with: -> { render json: { error: "Not found" }, status: :not_found }
   rescue_from ActiveRecord::RecordInvalid, with: ->(e) { render json: { error: e.record.errors.full_messages.to_sentence }, status: :unprocessable_entity }

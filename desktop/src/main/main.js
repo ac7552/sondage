@@ -16,6 +16,9 @@ import { Decrypter, generateX25519Identity, identityToRecipient } from "age-encr
 import os from "node:os";
 import { openAndVerify, readReceipt, checkAgainstReceipt, expectedFromReceipt } from "../core/verify.js";
 import { certificateHtml } from "../core/certificate.js";
+import { sittingNames, audioSegments, writeMaster, sittingRecord, fileSitting } from "../core/sitting.js";
+import { Dropbox, startAuthorization, exchangeCode, REDIRECT_PORT } from "../core/dropbox.js";
+import http from "node:http";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -104,7 +107,7 @@ handle("config:get", () => {
   const auth = store.readSecret("auth");
   return { ...c, signedIn: !!auth, user: auth?.user || null, platform: process.platform, keychain: store.keychainAvailable(), version: app.getVersion() };
 });
-handle("config:set", ({ serverUrl, vaultDir, tsaUrl }) => store.writeConfig({ ...(serverUrl ? { serverUrl: serverUrl.replace(/\/+$/, "") } : {}), ...(vaultDir ? { vaultDir } : {}), ...(tsaUrl !== undefined ? { tsaUrl } : {}) }));
+handle("config:set", ({ serverUrl, vaultDir, tsaUrl, storageSkipped }) => store.writeConfig({ ...(serverUrl ? { serverUrl: serverUrl.replace(/\/+$/, "") } : {}), ...(vaultDir ? { vaultDir } : {}), ...(tsaUrl !== undefined ? { tsaUrl } : {}), ...(storageSkipped !== undefined ? { storageSkipped: !!storageSkipped } : {}) }));
 handle("vault:choose", async () => {
   const r = await dialog.showOpenDialog({ title: "Choose where your sealed capsules are kept", properties: ["openDirectory", "createDirectory"] });
   if (r.canceled || !r.filePaths[0]) return null;
@@ -421,6 +424,134 @@ handle("rec:seal", async ({ sessionId, historianSignature, historianPublicKey })
   sessions.delete(String(sessionId));
   return result;
 });
+
+// ---------------------------------------------------------------- a Sitting, first version
+//
+// When a Sitting ends: build the two-channel master from what was staged, file it
+// with its Sitting record on this computer (Stephen's names and folders), then
+// queue the cloud copy and the confirmation email. Both are retried until done.
+
+handle("rec:deliver", async ({ sessionId, seasonKey, sitting, startedAt, endedAt, interviewId }) => {
+  const s = await rec(String(sessionId));
+  const names = sittingNames({ seasonKey, sitting, date: startedAt });
+  const masterTmp = path.join(s.dir, "master.wav");
+  const master = await writeMaster({
+    fellowTracks: audioSegments(s.state.tracks, "fellow"),
+    scholarTracks: audioSegments(s.state.tracks, "historian"),
+    chunkFile: (t, c) => s.chunkPath(t.id, c.index),
+    outFile: masterTmp,
+  });
+  const record = sittingRecord({ seasonKey, sitting, names, startedAt, endedAt, master });
+  const placed = await fileSitting({ root: store.config().archiveDir, names, masterFile: masterTmp, record });
+  // The filed copy is verified, so the staged pieces can go.
+  await fsp.rm(s.dir, { recursive: true, force: true });
+  sessions.delete(String(sessionId));
+
+  const remoteDir = "/vault/" + names.folder.join("/");
+  queue([
+    ...(store.readSecret("dropbox") ? [
+      { kind: "upload", local: placed.master, remote: `${remoteDir}/${names.master}`, label: "recording" },
+      { kind: "upload", local: placed.record, remote: `${remoteDir}/${names.record}`, label: "Sitting record" },
+    ] : []),
+    ...(interviewId ? [{ kind: "email", interviewId, started_at: new Date(startedAt).toISOString(), ended_at: new Date(endedAt).toISOString() }] : []),
+  ]);
+  store.writeConfig({ lastSitting: { dir: placed.dir, master: placed.master, names, durationSeconds: master.durationSeconds, at: new Date().toISOString() } });
+  return { ...placed, names, durationSeconds: master.durationSeconds, sha512: master.sha512 };
+});
+
+// ---------------------------------------------------------------- the Senior Fellow's Dropbox
+
+const dropboxAppKey = () => store.config().dropboxAppKey || null;
+function dropbox() {
+  const saved = store.readSecret("dropbox");
+  if (!saved || !dropboxAppKey()) return null;
+  return new Dropbox({ appKey: dropboxAppKey(), refreshToken: saved.refreshToken });
+}
+
+handle("storage:status", () => {
+  const saved = store.readSecret("dropbox");
+  return { provider: "dropbox", available: !!dropboxAppKey(), connected: !!saved, email: saved?.email || null, name: saved?.name || null, pending: (store.config().outbox || []).length };
+});
+// The app key isn't secret; the server says which Dropbox app to use.
+handle("storage:setAppKey", ({ appKey }) => store.writeConfig({ dropboxAppKey: appKey || null }));
+
+// Opens Dropbox's own sign-in in the browser; Dropbox sends the person back to a
+// one-time address on this computer. The token is kept in the keychain, nowhere else.
+let connecting = null;
+handle("storage:connect", async () => {
+  const appKey = dropboxAppKey();
+  if (!appKey) throw new Error("Sondage hasn't set up its Dropbox app yet.");
+  if (connecting) connecting.close();
+  const { url, verifier, state } = startAuthorization(appKey);
+  const code = await new Promise((resolve, reject) => {
+    const server = (connecting = http.createServer((req, res) => {
+      const u = new URL(req.url, "http://127.0.0.1");
+      if (u.pathname !== "/dropbox") { res.writeHead(404).end(); return; }
+      const ok = u.searchParams.get("state") === state && u.searchParams.get("code");
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      res.end(`<!doctype html><meta charset="utf-8"><title>Sondage</title><body style="font:22px/1.5 Georgia,serif;max-width:32em;margin:15vh auto;padding:0 20px;color:#303030"><h1 style="font-weight:400">${ok ? "Dropbox is connected." : "That didn't work."}</h1><p>${ok ? "You can close this window and go back to Sondage." : "Please go back to Sondage and try again."}</p></body>`);
+      server.close();
+      connecting = null;
+      ok ? resolve(ok) : reject(new Error(u.searchParams.get("error_description") || "Dropbox didn't connect."));
+    }));
+    server.on("error", (err) => reject(new Error(err.code === "EADDRINUSE" ? "Another program is using the address Dropbox returns to. Restart the computer and try again." : err.message)));
+    server.listen(REDIRECT_PORT, "127.0.0.1", () => shell.openExternal(url));
+    setTimeout(() => { if (server.listening) { server.close(); reject(new Error("Dropbox didn't finish connecting in time. Please try again.")); } }, 10 * 60 * 1000);
+  });
+  const token = await exchangeCode({ appKey, code, verifier });
+  const client = new Dropbox({ appKey, refreshToken: token.refresh_token });
+  const account = await client.account();
+  store.writeSecret("dropbox", { refreshToken: token.refresh_token, accountId: account.account_id, email: account.email, name: account.name?.display_name || null, connectedAt: new Date().toISOString() });
+  return { email: account.email, name: account.name?.display_name || null };
+});
+handle("storage:disconnect", () => {
+  store.deleteSecret("dropbox");
+  return true;
+});
+
+// ---------------------------------------------------------------- outbox: cloud copies and emails, retried
+
+function queue(items) {
+  if (!items.length) return;
+  store.writeConfig({ outbox: [...(store.config().outbox || []), ...items.map((i) => ({ ...i, id: crypto.randomUUID(), queuedAt: new Date().toISOString() }))] });
+}
+const notify = (msg) => BrowserWindow.getAllWindows()[0]?.webContents.send("outbox:progress", msg);
+
+let flushing = null;
+async function flushOutbox() {
+  if (flushing) return flushing;
+  flushing = (async () => {
+    const results = [];
+    for (const item of [...(store.config().outbox || [])]) {
+      try {
+        if (item.kind === "upload") {
+          const client = dropbox();
+          if (!client) throw new Error("Dropbox isn't connected.");
+          if (!fs.existsSync(item.local)) throw new Error(`${path.basename(item.local)} is no longer on this computer.`);
+          await client.upload(item.local, item.remote, { onProgress: (done, total) => notify({ id: item.id, label: item.label, done, total }) });
+        } else if (item.kind === "email") {
+          await api("POST", `/api/v1/interviews/${item.interviewId}/sitting`, { started_at: item.started_at, ended_at: item.ended_at });
+        }
+        store.writeConfig({ outbox: (store.config().outbox || []).filter((x) => x.id !== item.id) });
+        results.push({ id: item.id, kind: item.kind, label: item.label, ok: true });
+        notify({ id: item.id, label: item.label, kind: item.kind, ok: true });
+      } catch (err) {
+        results.push({ id: item.id, kind: item.kind, label: item.label, ok: false, error: String(err.message || err) });
+        notify({ id: item.id, label: item.label, kind: item.kind, ok: false, error: String(err.message || err) });
+      }
+    }
+    return results;
+  })();
+  try {
+    return await flushing;
+  } finally {
+    flushing = null;
+  }
+}
+handle("outbox:flush", () => flushOutbox());
+handle("outbox:status", () => store.config().outbox || []);
+// Anything left over (offline, asleep) goes out on its own every few minutes.
+app.whenReady().then(() => setInterval(() => flushOutbox().catch(() => {}), 5 * 60 * 1000));
 
 // ---------------------------------------------------------------- vault
 

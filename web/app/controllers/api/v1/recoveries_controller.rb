@@ -3,6 +3,7 @@
 # one helper's are needed, and no piece reaches the new computer before Sondage's is
 # released (after the waiting period and a phone call).
 class Api::V1::RecoveriesController < Api::V1::BaseController
+  requires_feature :safety_copies
   before_action :require_fellow!
   before_action :set_recovery, only: %i[show complete]
 

@@ -1,6 +1,7 @@
 # Admins release Sondage's own safety copy, after the waiting period, once they
 # have confirmed it is really the Fellow asking (for example by phone).
 class RecoveriesController < ApplicationController
+  requires_feature :safety_copies
   before_action :require_admin
   before_action :set_recovery
 

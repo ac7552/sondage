@@ -1,4 +1,5 @@
 class TenByTensController < ApplicationController
+  requires_feature :ten_by_ten
   before_action :set_fellow
   before_action :require_fellow_editor, except: :show
 

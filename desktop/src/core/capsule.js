@@ -128,6 +128,11 @@ export class RecordingSession {
     await this.save();
   }
 
+  // The staged file holding one recorded chunk.
+  chunkPath(trackId, index) {
+    return path.join(this.dir, "chunks", trackId, `${pad(index)}.bin`);
+  }
+
   trackStatus() {
     return Object.values(this.state.tracks).map((t) => ({
       id: t.id,
