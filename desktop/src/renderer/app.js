@@ -1291,6 +1291,7 @@ async function loadSettings() {
   if (firstVersion()) {
     const st = await renderStorage("#storage-help-list");
     $("#storage-help-connect").hidden = !st.available || st.connected;
+    $("#storage-help-disconnect").hidden = !st.connected;
   }
   const k = await S.keys.status();
   if (!state.me) state.me = await S.api("GET", "/api/v1/me").catch(() => null);
@@ -1316,6 +1317,11 @@ async function loadSettings() {
 $("#resend-safety").addEventListener("click", () => startSending([1, 2, 0]));
 $("#storage-help-connect").addEventListener("click", async () => {
   if (await connectDropbox($("#storage-help-connect"))) loadSettings();
+});
+$("#storage-help-disconnect").addEventListener("click", async () => {
+  if (!confirm("Disconnect Dropbox on this computer?\n\nSittings already in Dropbox stay there. New Sittings are saved on this computer until a Dropbox is connected again.")) return;
+  await S.storage.disconnect();
+  loadSettings();
 });
 $("#storage-help-open").addEventListener("click", async () => {
   const c = await S.config.get();

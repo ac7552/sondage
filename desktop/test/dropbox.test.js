@@ -100,3 +100,13 @@ test("sign-in uses PKCE with no secret, the app's narrow scopes, and the local r
   assert.equal(u.searchParams.get("redirect_uri"), REDIRECT_URI);
   assert.equal(u.searchParams.get("scope"), "account_info.read files.metadata.read files.content.write");
 });
+
+test("disconnecting cancels the sign-in at Dropbox", async () => {
+  const calls = [];
+  const fetchImpl = async (url) => {
+    calls.push(url.replace(/^https:\/\/[^/]+/, ""));
+    return { ok: true, status: 200, json: async () => (url.endsWith("/oauth2/token") ? { access_token: "A", expires_in: 3600 } : null), text: async () => "", headers: { get: () => null } };
+  };
+  await new Dropbox({ appKey: "k", refreshToken: "r", fetchImpl }).revoke();
+  assert.deepEqual(calls, ["/oauth2/token", "/2/auth/token/revoke"]);
+});

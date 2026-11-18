@@ -141,6 +141,11 @@ export class Dropbox {
     }
   }
 
+  // Tells Dropbox to cancel this computer's sign-in, so it stops working everywhere.
+  async revoke() {
+    await this.#call("https://api.dropboxapi.com/2/auth/token/revoke", { rpc: true });
+  }
+
   account() {
     return this.#call("https://api.dropboxapi.com/2/users/get_current_account", { rpc: true });
   }

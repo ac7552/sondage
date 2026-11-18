@@ -504,7 +504,10 @@ handle("storage:connect", async () => {
   store.writeSecret("dropbox", { refreshToken: token.refresh_token, accountId: account.account_id, email: account.email, name: account.name?.display_name || null, connectedAt: new Date().toISOString() });
   return { email: account.email, name: account.name?.display_name || null };
 });
-handle("storage:disconnect", () => {
+// Cancels the sign-in at Dropbox too (best effort), then forgets it here. Sittings
+// already in Dropbox stay there; they're the Senior Fellow's.
+handle("storage:disconnect", async () => {
+  await dropbox()?.revoke().catch(() => {});
   store.deleteSecret("dropbox");
   return true;
 });
