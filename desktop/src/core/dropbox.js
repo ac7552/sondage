@@ -78,6 +78,31 @@ export async function contentHash(file) {
   return crypto.createHash("sha256").update(Buffer.concat(blocks)).digest("hex");
 }
 
+// ---------------------------------------------------------------- room for Sittings
+
+// Roughly how big one Sitting's files are: two channels of 32-bit samples at 48 kHz,
+// plus a little for the header and the Sitting record.
+export function bytesPerSitting(minutes, sampleRate = 48000) {
+  return Math.ceil(minutes * 60 * sampleRate * 2 * 4 + 64 * 1024);
+}
+
+// Dropbox's answer to "how much space is used and allowed", as plain numbers.
+// A team member's own limit (if any) is respected as well as the team's.
+export function freeSpace(usage) {
+  const a = usage?.allocation || {};
+  if (a[".tag"] === "team") {
+    const team = a.allocated - a.used;
+    const mine = a.user_within_team_space_allocated ? a.user_within_team_space_allocated - (a.user_within_team_space_used_cached ?? usage.used) : Infinity;
+    return { used: usage.used, allocated: a.allocated, free: Math.max(0, Math.min(team, mine)) };
+  }
+  return { used: usage.used, allocated: a.allocated, free: Math.max(0, a.allocated - usage.used) };
+}
+
+// How many more Sittings fit, rounded down.
+export function sittingsThatFit(free, minutes) {
+  return Math.floor(free / bytesPerSitting(minutes));
+}
+
 // ---------------------------------------------------------------- the client
 
 export class Dropbox {
@@ -146,6 +171,10 @@ export class Dropbox {
     await this.#call("https://api.dropboxapi.com/2/auth/token/revoke", { rpc: true });
   }
 
+  async space() {
+    return freeSpace(await this.#call("https://api.dropboxapi.com/2/users/get_space_usage", { rpc: true }));
+  }
+
   account() {
     return this.#call("https://api.dropboxapi.com/2/users/get_current_account", { rpc: true });
   }
@@ -170,6 +199,11 @@ export class Dropbox {
       }
     } catch (err) {
       // Already there (a retry after a dropped connection): fine if it's the same file.
+      if (err.status === 409 && /insufficient_space/.test(err.body || "")) {
+        const full = new Error("Your Dropbox is full.");
+        full.full = true;
+        throw full;
+      }
       if (err.status === 409 && /conflict/.test(err.body || "")) {
         meta = await this.metadata(remote);
         if (meta.content_hash !== expected) throw new Error(`${remote} is already in Dropbox with different contents. Nothing was overwritten.`);

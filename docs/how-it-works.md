@@ -151,8 +151,13 @@ kept**: press **Connect my Dropbox**, sign in to Dropbox in the browser, and pre
 **Allow**. The token stays in that computer's keychain. **Help** shows where the Sittings
 are and can connect Dropbox later.
 
-A free Dropbox account holds 2 GB, about 1.5 hours of two-channel master at 48 kHz, so
-it's fine for a demo of 20-minute Sittings.
+**Room in Dropbox.** A Sitting is about 1.4 GB per hour (two channels, 32-bit, 48 kHz), so
+a free 2 GB Dropbox holds about four 20-minute Sittings, or one hour-long one. The app asks
+Dropbox how much space is free and shows it in plain words ("1.6 GB free, room for about 3
+more Sittings") on the setup screen and in Help. When there's room for fewer than two, the
+home screen asks the Senior Fellow to have family or Sondage add space. Before every copy it
+checks the file fits; if it doesn't, the Sitting stays safe on the computer, the saved screen
+says "Your Dropbox is full", and the copy goes out by itself once there's room.
 
 ## Releasing the desktop app
 

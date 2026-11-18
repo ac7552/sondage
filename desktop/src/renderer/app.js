@@ -470,7 +470,11 @@ async function renderFirstVersionHome(next, done) {
       </section>`;
   }
   const pending = (await S.outbox.status().catch(() => [])).filter((i) => i.kind === "upload").length;
-  const note = pending ? `<p class="small">Still copying to your Dropbox. It will finish on its own when the internet is on.</p>` : "";
+  const space = storage.connected ? await dropboxRoom() : null;
+  let note = "";
+  if (space && space.sittings < 1) note = `<p class="problem">Your Dropbox is full. Your Sittings are still saved on this computer. Please ask your family or Sondage to add space to your Dropbox.</p>`;
+  else if (space && space.sittings < 2) note = `<p class="small">Your Dropbox has room for about one more Sitting. Please ask your family or Sondage to add space soon.</p>`;
+  else if (pending) note = `<p class="small">Still copying to your Dropbox. It will finish on its own when the internet is on.</p>`;
   $("#home-card").innerHTML = card + note;
 }
 document.addEventListener("click", async (e) => {
@@ -1079,8 +1083,15 @@ async function endAndDeliver() {
     const results = await S.outbox.flush();
     const uploads = results.filter((r) => r.kind === "upload");
     const cloudOk = storage.connected && uploads.length > 0 && uploads.every((r) => r.ok);
+    const full = uploads.some((r) => r.full);
+    const after = cloudOk ? await dropboxRoom() : null;
+    const roomNote = after && after.sittings < 2 ? ` Room for about ${after.sittings} more Sitting${after.sittings === 1 ? "" : "s"}: please ask your family or Sondage to add space.` : "";
     // A tick only for what actually happened; the rest is retried on its own.
-    step("cloud", cloudOk ? "done" : "waiting", cloudOk ? "Arrived, and checked." : storage.connected ? "Not finished yet. It will finish on its own when the internet is on." : "Not connected. Ask Sondage to help connect your Dropbox.");
+    step("cloud", cloudOk ? "done" : "waiting",
+      cloudOk ? `Arrived, and checked.${roomNote}`
+      : full ? "Your Dropbox is full. Your Sitting is safe on this computer, and will copy once there's more room."
+      : storage.connected ? "Not finished yet. It will finish on its own when the internet is on."
+      : "Not connected. Ask Sondage to help connect your Dropbox.");
     const mail = results.find((r) => r.kind === "email");
     step("email", mail?.ok ? "done" : "waiting", mail?.ok ? "Sent." : "It will be sent when the internet is on.");
 
@@ -1114,13 +1125,27 @@ async function showStorageSetup() {
   $("#storage-error").hidden = true;
   await renderStorage("#storage-list");
 }
+// Room left in the Senior Fellow's Dropbox, in plain words.
+const sittingMinutes = () => state.me?.sitting?.minutes || 60;
+const gb = (bytes) => `${(bytes / 1e9).toFixed(bytes < 10e9 ? 1 : 0)} GB`;
+async function dropboxRoom() {
+  return S.storage.space(sittingMinutes()).catch(() => null);
+}
+function roomWords(space) {
+  if (!space) return "";
+  if (space.sittings < 1) return `Full: ${gb(space.free)} left, not enough for a Sitting. Ask your family or Sondage to add space to this Dropbox.`;
+  return `${gb(space.free)} free, room for about ${space.sittings} more Sitting${space.sittings === 1 ? "" : "s"}`;
+}
+
 async function renderStorage(list) {
   const st = await S.storage.status();
   const c = await S.config.get();
+  const space = st.connected ? await dropboxRoom() : null;
+  const low = space && space.sittings < 2;
   $(list).innerHTML = `
     <li class="done"><span class="mark">✓</span><span>This computer<span class="sub">${esc(c.archiveDir)}</span></span></li>
-    <li class="${st.connected ? "done" : ""}"><span class="mark">${st.connected ? "✓" : "…"}</span><span>Your Dropbox<span class="sub">${st.connected ? esc(st.email || "Connected") : "Not connected yet"}</span></span></li>`;
-  return st;
+    <li class="${st.connected ? (low ? "warn" : "done") : ""}"><span class="mark">${st.connected ? (low ? "!" : "✓") : "…"}</span><span>Your Dropbox<span class="sub">${st.connected ? esc([st.email || "Connected", roomWords(space)].filter(Boolean).join(" · ")) : "Not connected yet"}</span></span></li>`;
+  return { ...st, space };
 }
 async function connectDropbox(button, errorEl) {
   button.disabled = true;

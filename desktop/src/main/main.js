@@ -17,7 +17,7 @@ import os from "node:os";
 import { openAndVerify, readReceipt, checkAgainstReceipt, expectedFromReceipt } from "../core/verify.js";
 import { certificateHtml } from "../core/certificate.js";
 import { sittingNames, audioSegments, writeMaster, sittingRecord, fileSitting } from "../core/sitting.js";
-import { Dropbox, startAuthorization, exchangeCode, REDIRECT_PORT } from "../core/dropbox.js";
+import { Dropbox, startAuthorization, exchangeCode, REDIRECT_PORT, sittingsThatFit } from "../core/dropbox.js";
 import http from "node:http";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -472,6 +472,13 @@ handle("storage:status", () => {
   const saved = store.readSecret("dropbox");
   return { provider: "dropbox", available: !!dropboxAppKey(), connected: !!saved, email: saved?.email || null, name: saved?.name || null, pending: (store.config().outbox || []).length };
 });
+// How much room is left in the Senior Fellow's Dropbox, and how many Sittings that is.
+handle("storage:space", async ({ minutes = 60 }) => {
+  const client = dropbox();
+  if (!client) return null;
+  const s = await client.space();
+  return { ...s, sittings: sittingsThatFit(s.free, minutes) };
+});
 // The app key isn't secret; the server says which Dropbox app to use.
 handle("storage:setAppKey", ({ appKey }) => store.writeConfig({ dropboxAppKey: appKey || null }));
 
@@ -531,6 +538,14 @@ async function flushOutbox() {
           const client = dropbox();
           if (!client) throw new Error("Dropbox isn't connected.");
           if (!fs.existsSync(item.local)) throw new Error(`${path.basename(item.local)} is no longer on this computer.`);
+          // Check there's room first; if not, keep it here and say so plainly.
+          const size = fs.statSync(item.local).size;
+          const space = await client.space().catch(() => null);
+          if (space && space.free < size) {
+            const full = new Error("Your Dropbox is full.");
+            full.full = true;
+            throw full;
+          }
           await client.upload(item.local, item.remote, { onProgress: (done, total) => notify({ id: item.id, label: item.label, done, total }) });
         } else if (item.kind === "email") {
           await api("POST", `/api/v1/interviews/${item.interviewId}/sitting`, { started_at: item.started_at, ended_at: item.ended_at });
@@ -539,8 +554,8 @@ async function flushOutbox() {
         results.push({ id: item.id, kind: item.kind, label: item.label, ok: true });
         notify({ id: item.id, label: item.label, kind: item.kind, ok: true });
       } catch (err) {
-        results.push({ id: item.id, kind: item.kind, label: item.label, ok: false, error: String(err.message || err) });
-        notify({ id: item.id, label: item.label, kind: item.kind, ok: false, error: String(err.message || err) });
+        results.push({ id: item.id, kind: item.kind, label: item.label, ok: false, full: !!err.full, error: String(err.message || err) });
+        notify({ id: item.id, label: item.label, kind: item.kind, ok: false, full: !!err.full, error: String(err.message || err) });
       }
     }
     return results;

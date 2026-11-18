@@ -110,3 +110,30 @@ test("disconnecting cancels the sign-in at Dropbox", async () => {
   await new Dropbox({ appKey: "k", refreshToken: "r", fetchImpl }).revoke();
   assert.deepEqual(calls, ["/oauth2/token", "/2/auth/token/revoke"]);
 });
+
+import { freeSpace, sittingsThatFit, bytesPerSitting } from "../src/core/dropbox.js";
+
+test("room left is worked out from Dropbox's numbers, for a person or a team", () => {
+  const GB = 1e9;
+  assert.deepEqual(freeSpace({ used: 0.5 * GB, allocation: { ".tag": "individual", allocated: 2 * GB } }), { used: 0.5 * GB, allocated: 2 * GB, free: 1.5 * GB });
+  const team = freeSpace({ used: 1 * GB, allocation: { ".tag": "team", allocated: 100 * GB, used: 40 * GB, user_within_team_space_allocated: 3 * GB, user_within_team_space_used_cached: 1 * GB } });
+  assert.equal(team.free, 2 * GB); // the person's own limit is smaller than the team's
+  assert.equal(freeSpace({ used: 3 * GB, allocation: { ".tag": "individual", allocated: 2 * GB } }).free, 0);
+});
+
+test("a 20-minute Sitting is about half a gigabyte; a free Dropbox fits about four", () => {
+  assert.ok(Math.abs(bytesPerSitting(20) - 0.4608e9) < 1e6);
+  assert.equal(sittingsThatFit(2e9, 20), 4);
+  assert.equal(sittingsThatFit(2e9, 60), 1);
+  assert.equal(sittingsThatFit(0.3e9, 20), 0);
+});
+
+test("a full Dropbox is reported plainly, and nothing is overwritten", async () => {
+  const fetchImpl = async (url) => {
+    if (url.endsWith("/oauth2/token")) return { ok: true, status: 200, json: async () => ({ access_token: "A", expires_in: 3600 }), text: async () => "", headers: { get: () => null } };
+    const body = JSON.stringify({ error_summary: "path/insufficient_space/..", error: { ".tag": "path", reason: { ".tag": "insufficient_space" } } });
+    return { ok: false, status: 409, json: async () => JSON.parse(body), text: async () => body, headers: { get: () => null } };
+  };
+  const dbx = new Dropbox({ appKey: "k", refreshToken: "r", fetchImpl, wait: async () => {} });
+  await assert.rejects(dbx.upload(await tempFile(Buffer.from("x")), "/vault/m.wav"), (err) => err.full === true && /full/.test(err.message));
+});

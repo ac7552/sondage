@@ -50,6 +50,7 @@ contextBridge.exposeInMainWorld("sondage", {
     setAppKey: (appKey) => call("storage:setAppKey", { appKey }),
     connect: () => call("storage:connect"),
     disconnect: () => call("storage:disconnect"),
+    space: (minutes) => call("storage:space", { minutes }),
   },
   // Cloud copies and emails waiting to go out; retried until done.
   outbox: {
